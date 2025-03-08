@@ -11,7 +11,7 @@
  */
 
 // Warn: 特化机器人代码前，必须修改此处
-#define ROBOT_BRIEF "DEV_ROBOT_NAME"
+#define ROBOT_BRIEF "CAUC_OLD_HERO"
 
 // 若启用，则可通过串口访问终端
 #define USE_TERMINAL
@@ -25,10 +25,10 @@
 #define SYS_FLASH_KEY 998244353
 
 // 底盘
-// #define COMPILE_CHASSIS
+ #define COMPILE_CHASSIS
 
 // 云台
-// #define COMPILE_GIMBAL
+ #define COMPILE_GIMBAL
 
 // 若不是同时编译云台和底盘，则启用双控制器选项
 #if !(defined(COMPILE_CHASSIS) && defined(COMPILE_GIMBAL))

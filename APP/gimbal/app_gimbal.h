@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include "app_conf.h"
 
 #ifdef __cplusplus
@@ -14,7 +15,7 @@ extern "C" {
  * 云台初始化 (随系统初始化调用)
  */
 void app_gimbal_init();
-
+uint32_t read_yaw_angle();
 /*!
  * 云台任务
  * @param args RTOS 任务参数
