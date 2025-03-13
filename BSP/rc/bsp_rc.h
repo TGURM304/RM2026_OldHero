@@ -10,7 +10,9 @@ extern "C" {
 #endif
 
 #include "stdint.h"
-
+#define KEYBOARD_CONTROL 1
+#define RC_CONTROL 0
+#define SHOOT -1
 /*!
  *  用来存放经过简单处理的遥控器数据。
  *  @param rc_l/r 左、右摇杆状态，悬空状态为 {0, 0}，以摇杆中心建立平面直角坐标系，范围 [-660, 660]（向上、向右为正方向）
@@ -27,6 +29,7 @@ typedef struct {
     uint8_t mouse_l, mouse_r;
     uint16_t keyboard;
     int16_t reserved;
+    unsigned int timestamp;
 } bsp_rc_data_t;
 
 /*!

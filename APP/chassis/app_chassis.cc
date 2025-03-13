@@ -23,8 +23,10 @@
 #include "app_gimbal.h"
 #include "dev_motor_dji.h"
 #include "ctrl_motor_base_pid.h"
-#include "dev_cap.h"
+#include "bsp_keyboard.h"
 #ifdef COMPILE_CHASSIS
+//@Todo：底盘跟随云台
+
 /*
  *  适用于麦克纳姆轮（民航英雄）
  *  实现了基础的旋转、平移
@@ -77,7 +79,10 @@ double rotate = 0;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 
-constexpr int16_t yaw_zero_position = 7076;
+constexpr int16_t yaw_zero_position = 9124;
+
+bsp_keyboard_t chassis_data;
+
 // 静态任务，在 CubeMX 中配置
 void app_chassis_task(void *args) {
     // Wait for system init.
@@ -85,23 +90,59 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     while(true) {
-        OS::Task::SleepMilliseconds(1);
-        vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
-        if(rc->s_l == 1) rotate = 2000;
-        else if(rc->s_l == -1) rotate = -2000;
-        else rotate = 0;
+
+        read_key_state(&chassis_data,rc->keyboard);
+
+        if(rc->s_r==RC_CONTROL) {
+            vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
+//            if(rc->s_l == 1) rotate = 2000;
+//            else if(rc->s_l == -1) rotate = -2000;
+//            else rotate = 0;
+        }
+        if(rc->s_r==KEYBOARD_CONTROL){
+            vx = (1.0*chassis_data.d) * 1000 - (1.0*chassis_data.a) * 1000;
+            vy = (1.0*chassis_data.w) * 1000 - (1.0*chassis_data.s) * 1000;
+            if(chassis_data.q == 1){
+                switch (update_key_state(chassis_data.e) % 3)//变速小陀螺
+                {
+                case 0:
+                    rotate = 1500;
+                    break;
+                case 1:
+                    rotate = 2000;
+                    break;
+                case 2:
+                    rotate = 2500;
+                    break;
+                default:
+                    rotate = 0;
+                    break;
+                }
+            }
+            else rotate = 0;
+        }
 
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
-        // theta -= (ins->yaw - gimbal.yaw_ins) / 180.0 * M_PI;
+//        theta -= (ins->yaw - ins->raw.gyro[2]) / 180.0 * M_PI;
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
-        vx = r * std::cos(theta), vy = r * std::sin(theta);
-
+        vx = r * std::cos(theta);vy = r * std::sin(theta);
+        app_msg_vofa_send(E_UART_DEBUG, {
+                                            1.0*rc->mouse_x,
+                                            1.0*rc->mouse_y,
+                                            1.0*rc->keyboard,
+                                            1.0f*read_yaw_angle(),
+                                            1.0f* update_key_state(chassis_data.e)
+                                        });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;
         RU.update(rotate - vy * M_SQRT2 + vx * M_SQRT2) ;
+
+
+        OS::Task::SleepMilliseconds(1);
     }
 }
+
 
 void app_chassis_init() {
 LU.add_controller(std::make_unique <Controller::MotorBasePID> (
@@ -126,7 +167,6 @@ RD.add_controller(std::make_unique <Controller::MotorBasePID> (
     ));
 LU.init(); LD.init(); RU.init(); RD.init();
 //    LU.relax(); LD.relax(); RU.relax(); RD.relax();
-//CAP::init();//真的有吗？
 }
 
 #endif
