@@ -9,7 +9,7 @@
 #include <cstdint>
 
 // 单个 Can 总线挂载电机数限制
-#define DJI_MOTOR_LIMIT 8
+#define DJI_MOTOR_LIMIT 12
 
 /*
  *  DJI Motor Driver

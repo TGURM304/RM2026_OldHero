@@ -8,7 +8,7 @@
 
 #include "bsp_can.h"
 #include "bsp_time.h"
-
+//Tips:英雄的超电接到了底盘的CAN2
 using namespace CAP;
 
 static cap_data_t data_;
@@ -38,9 +38,9 @@ void CAP::send(float limit) {
     // 30 <= x <= 250, 0 <= y <= 99
     uint8_t tx[8] = { 0 };
     tx[0] = x, tx[1] = y;
-    bsp_can_send(E_CAN1, 0x0ff, tx);
+    bsp_can_send(E_CAN2, 0x0ff, tx);
 }
 
 void CAP::init() {
-    bsp_can_set_callback(E_CAN1, 0x0ff, recv);
+    bsp_can_set_callback(E_CAN2, 0x0ff, recv);
 }

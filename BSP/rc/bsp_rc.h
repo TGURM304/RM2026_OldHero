@@ -9,10 +9,23 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "stdint.h"
 #define KEYBOARD_CONTROL 1
 #define RC_CONTROL 0
 #define SHOOT -1
+
+
+
+typedef union {
+    uint16_t raw;
+    struct __attribute__((packed)) {
+        bool w : 1, s : 1, a : 1, d : 1, shift : 1, ctrl : 1, q : 1, e : 1,
+            r : 1, f : 1, g : 1, z : 1, x : 1, c : 1, v : 1, b : 1;
+    } key;
+} bsp_rc_keyboard_u;
+
+
 /*!
  *  用来存放经过简单处理的遥控器数据。
  *  @param rc_l/r 左、右摇杆状态，悬空状态为 {0, 0}，以摇杆中心建立平面直角坐标系，范围 [-660, 660]（向上、向右为正方向）
@@ -27,9 +40,9 @@ typedef struct {
     int8_t s_l, s_r;
     int16_t mouse_x, mouse_y, mouse_z;
     uint8_t mouse_l, mouse_r;
-    uint16_t keyboard;
+    bsp_rc_keyboard_u keyboard;
     int16_t reserved;
-    unsigned int timestamp;
+    uint32_t time_stamp;
 } bsp_rc_data_t;
 
 /*!

@@ -5,12 +5,12 @@
 #include "bsp_rc.h"
 
 #include "bsp_def.h"
+#include "bsp_time.h"
 #include "bsp_uart.h"
 
 #include "usart.h"
 
 #include "string.h"
-#include "bsp_time.h"
 
 #define RC_UART_PORT huart3
 
@@ -38,8 +38,8 @@ void rc_uart_callback(bsp_uart_e e, uint8_t *s, uint16_t l) {
     data.s_r = (int8_t) (raw.s1 == 3 ? 0 : raw.s1 == 2 ? -1 : 1);
     data.mouse_x = raw.mouse_x, data.mouse_y = raw.mouse_y, data.mouse_z = raw.mouse_z;
     data.mouse_l = raw.mouse_l, data.mouse_r = raw.mouse_r;
-    data.keyboard = raw.keyboard, data.reserved = (int16_t) (1024 - raw.reserved);
-    data.timestamp = bsp_time_get_ms();
+    data.keyboard.raw = raw.keyboard, data.reserved = (int16_t) (1024 - raw.reserved);
+    data.time_stamp = bsp_time_get_ms();
 }
 
 const bsp_rc_data_t *bsp_rc_data() {
@@ -50,3 +50,4 @@ void bsp_rc_init() {
     bsp_uart_init(E_UART_RC, &RC_UART_PORT);
     bsp_uart_set_callback(E_UART_RC, rc_uart_callback);
 }
+

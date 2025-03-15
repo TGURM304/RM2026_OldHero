@@ -20,7 +20,7 @@ void app_chassis_init();
  * @param args RTOS 任务参数
  */
 void app_chassis_task(void *args);
-
+double read_rotate();
 #ifdef __cplusplus
 }
 #endif
