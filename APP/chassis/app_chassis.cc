@@ -23,7 +23,7 @@
 #include "app_gimbal.h"
 #include "dev_motor_dji.h"
 #include "ctrl_motor_base_pid.h"
-#include "bsp_keyboard.h"
+#include "app_referee.h"
 #ifdef COMPILE_CHASSIS
 //@Todo：底盘跟随云台
 
@@ -74,14 +74,16 @@ MotorController RD(std::make_unique <Motor::DJIMotor> (
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
 double vx = 0, vy = 0;
 // 旋转速度
-double rotate = 0;
-
+double rotate = 0,rotate_1 = 0,rotate_2 = 0;
+double read_rotate(){
+    return rotate;
+}
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
+const auto referee = app_referee_data();
 
 constexpr int16_t yaw_zero_position = 9124;
-
-bsp_keyboard_t chassis_data;
+bsp_rc_keyboard_u lst_keyboard,now_keyboard,press_key,key_c;
 
 // 静态任务，在 CubeMX 中配置
 void app_chassis_task(void *args) {
@@ -90,48 +92,29 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     while(true) {
-
-        read_key_state(&chassis_data,rc->keyboard);
+        //按键状态检测
+        lst_keyboard = now_keyboard, now_keyboard = key_c, press_key.raw = (now_keyboard.raw ^ lst_keyboard.raw) & now_keyboard.raw;
 
         if(rc->s_r==RC_CONTROL) {
             vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
-//            if(rc->s_l == 1) rotate = 2000;
-//            else if(rc->s_l == -1) rotate = -2000;
-//            else rotate = 0;
         }
-        if(rc->s_r==KEYBOARD_CONTROL){
-            vx = (1.0*chassis_data.d) * 1000 - (1.0*chassis_data.a) * 1000;
-            vy = (1.0*chassis_data.w) * 1000 - (1.0*chassis_data.s) * 1000;
-            if(chassis_data.q == 1){
-                switch (update_key_state(chassis_data.e) % 3)//变速小陀螺
-                {
-                case 0:
-                    rotate = 1500;
-                    break;
-                case 1:
-                    rotate = 2000;
-                    break;
-                case 2:
-                    rotate = 2500;
-                    break;
-                default:
-                    rotate = 0;
-                    break;
-                }
-            }
-            else rotate = 0;
+        else{
+            vx = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
+            vy = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
+            rotate_1 = 1.0 * key_c.key.q * 500 - 1.0 * key_c.key.e * 500;
+            rotate_2 = rotate_2 == 2500 ? 0 : rotate_2 + 500;
+        if(rc->s_r==KEYBOARD_CONTROL) {
+            key_c = rc->keyboard;
         }
-
+        if(rc->s_r==PICTRANS_CONTROL){
+            key_c = referee->remote_control.keyboard;
+        }
+    }
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
-//        theta -= (ins->yaw - ins->raw.gyro[2]) / 180.0 * M_PI;
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);vy = r * std::sin(theta);
         app_msg_vofa_send(E_UART_DEBUG, {
-                                            1.0*rc->mouse_x,
-                                            1.0*rc->mouse_y,
-                                            1.0*rc->keyboard,
-                                            1.0f*read_yaw_angle(),
-                                            1.0f* update_key_state(chassis_data.e)
+
                                         });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;

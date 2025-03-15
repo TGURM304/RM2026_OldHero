@@ -13,7 +13,7 @@ extern "C" {
 #include "stdint.h"
 #define KEYBOARD_CONTROL 1
 #define RC_CONTROL 0
-#define SHOOT -1
+#define PICTRANS_CONTROL -1
 
 
 

@@ -16,7 +16,7 @@
 #include "app_msg.h"
 #include "ctrl_low_pass_filter.h"
 #include "bsp_time.h"
-#include "bsp_keyboard.h"
+#include "app_referee.h"
 #ifdef COMPILE_GIMBAL
 
 //@Todo:单发射击限位 键盘检测控制 图传模块 PID调参
@@ -54,11 +54,12 @@ static float calc_delta(float full, float current, float target) {
     if(2 * dt < -full) dt += full;
     return dt;
 }
-
+bsp_rc_keyboard_u lst_keyboard_,now_keyboard_,press_key_,key_g;;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
-bsp_keyboard_t gimbal_keyboard;
-float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0;
+const auto referee = app_referee_data();
+
+float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0,shoot_speed = 0;
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
 }
@@ -73,11 +74,12 @@ void app_gimbal_task(void *args) {
     bsp_uart_set_callback(E_UART_DEBUG, set_target);
 
     while(true) {
-        yaw_sum_angle = calc_delta(360, yaw_lst_angle, ins->yaw);
+        yaw_sum_angle += calc_delta(360, yaw_lst_angle, ins->yaw);
         yaw_lst_angle = ins->yaw;
-
+        //按键状态检测
+        lst_keyboard_ = now_keyboard_, now_keyboard_ = key_g, press_key_.raw = (now_keyboard_.raw ^ lst_keyboard_.raw) & now_keyboard_.raw;
         //遥控器离线检测
-        if(bsp_time_get_ms() - rc->timestamp > 100) {
+        if(bsp_time_get_ms() - rc->time_stamp > 100) {
             pit.clear();
             pit.update(0);
             yaw.clear();
@@ -85,34 +87,37 @@ void app_gimbal_task(void *args) {
             OS::Task::SleepMilliseconds(1);
             continue;
         }
+
         if(rc->s_r==RC_CONTROL){
         yaw_target = (rc->rc_r[0] * 0.1f);
         pit_target += (rc->rc_r[1] * 0.2f);
-        if(rc->s_l == SHOOT){
+        if(rc->s_l == -1){
             shoot_left.update(6000);shoot_right.update(-6000);
             Bullet_supply.update(60);
             continue;
         }
-        }
+    }
         if(rc->s_r == KEYBOARD_CONTROL){
-            yaw_target -= static_cast <float> (rc->mouse_x) * 0.0020f;
-            pit_target -= static_cast <float> (rc->mouse_y) * 0.0012f;
-
-            switch(update_key_state(gimbal_keyboard.f)%2){
-            case 0:shoot_right.update(0);shoot_left.update(0);
-                break;
-            case 1:shoot_left.update(6000);shoot_right.update(-6000);
-                break;
-            default:shoot_left.clear();shoot_right.clear();
-                break;
-            }
+            yaw_target = rc->mouse_x;
+            pit_target = rc->mouse_y;
+            shoot_speed = rc->mouse_l*1000.0f;
         }
-        std::clamp(pit_target,-15.f,20.f);//限幅
+        if(rc->s_r == PICTRANS_CONTROL){
+            yaw_target = referee->remote_control.mouse_x;
+            pit_target = referee->remote_control.mouse_y;
+            shoot_speed = referee->remote_control.mouse_l*1000.0f;
+        }
 
+        yaw_target -= static_cast <float> (yaw_target) * 0.020f;
+        pit_target -= static_cast <float> (pit_target) * 0.022f;
+        std::clamp(pit_target,-15.f,20.f);//限幅
         yaw.update(yaw_target);
         pit.update(pit_target);
 
-
+        if(press_key_.key.f){
+            shoot_left.update(6000);shoot_right.update(-6000);
+        }
+        Bullet_supply.update(shoot_speed);
         OS::Task::SleepMilliseconds(1);
     }
 }
@@ -153,9 +158,9 @@ void app_gimbal_init() {
         nullptr
         ));
     Bullet_supply.add_controller(std::make_unique <Controller::MotorBasePID> (
-        Controller::MotorBasePID::PID_SPEED|Controller::MotorBasePID::PID_ANGLE,
+        Controller::MotorBasePID::PID_SPEED,
         std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 25000, 5000),
-        std::make_unique <Controller::PID> (10.0, 0.08, 0.03, 16384, 1000)
+        nullptr
         ));
     /*低通滤波*/
     yaw.add_controller(
