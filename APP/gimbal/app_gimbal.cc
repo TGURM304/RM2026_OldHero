@@ -3,6 +3,7 @@
 //
 
 #include <cmath>
+#include <cstring>
 #include "app_gimbal.h"
 #include "app_sys.h"
 #include "sys_task.h"
@@ -28,7 +29,7 @@ MotorController yaw(std::make_unique <DJIMotor> (
     "yaw", DJIMotor::GM6020, (DJIMotor::Param) { 0x02, E_CAN1, DJIMotor::VOLTAGE }
 ));
 MotorController pit(std::make_unique <DJIMotor> (
-    "pit", DJIMotor::GM6020, (DJIMotor::Param) { 0x01, E_CAN1, DJIMotor::CURRENT }
+    "pit", DJIMotor::GM6020, (DJIMotor::Param) { 0x01, E_CAN1, DJIMotor::VOLTAGE }
 ));
 MotorController shoot_left(std::make_unique <Motor::DJIMotor> (
     "shoot_left",
@@ -38,12 +39,12 @@ MotorController shoot_left(std::make_unique <Motor::DJIMotor> (
 MotorController shoot_right(std::make_unique <Motor::DJIMotor> (
     "shoot_right",
     Motor::DJIMotor::M3508,
-    (Motor::DJIMotor::Param) { .id = 0x02, .port = E_CAN1, .mode = Motor::DJIMotor::CURRENT }
+    (Motor::DJIMotor::Param) { .id = 0x01, .port = E_CAN1, .mode = Motor::DJIMotor::CURRENT }
     ));
 MotorController Bullet_supply(std::make_unique <Motor::DJIMotor> (
     "Bullet_supply",
     Motor::DJIMotor::M3508,
-    (Motor::DJIMotor::Param) { .id = 0x01, .port = E_CAN1, .mode = Motor::DJIMotor::CURRENT }
+    (Motor::DJIMotor::Param) { .id = 0x03, .port = E_CAN1, .mode = Motor::DJIMotor::CURRENT }
     ));
 uint32_t read_yaw_angle(){
     return yaw.angle;
@@ -60,6 +61,8 @@ const auto ins = app_ins_data();
 const auto referee = app_referee_data();
 
 float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0,shoot_speed = 0;
+float yaw_control=0,pit_control=0;
+bool shoot_flag = 0;
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
 }
@@ -68,7 +71,6 @@ void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
 void app_gimbal_task(void *args) {
     // Wait for system init.
     while(!app_sys_ready())
-        OS::Task::SleepMilliseconds(10);
 
     OS::Task::SleepMilliseconds(500);
     bsp_uart_set_callback(E_UART_DEBUG, set_target);
@@ -78,47 +80,49 @@ void app_gimbal_task(void *args) {
         yaw_lst_angle = ins->yaw;
         //按键状态检测
         lst_keyboard_ = now_keyboard_, now_keyboard_ = key_g, press_key_.raw = (now_keyboard_.raw ^ lst_keyboard_.raw) & now_keyboard_.raw;
-        //遥控器离线检测
-        if(bsp_time_get_ms() - rc->time_stamp > 100) {
+        //遥控器/图传 离线检测
+        if(bsp_time_get_ms() - rc->time_stamp > 100 ) {
             pit.clear();
             pit.update(0);
             yaw.clear();
             yaw.update(yaw_target);
+            shoot_flag = shoot_speed = 0;
             OS::Task::SleepMilliseconds(1);
             continue;
         }
 
         if(rc->s_r==RC_CONTROL){
-        yaw_target = (rc->rc_r[0] * 0.1f);
+        yaw_target += (rc->rc_r[0] * 0.1f);
         pit_target += (rc->rc_r[1] * 0.2f);
-        if(rc->s_l == -1){
-            shoot_left.update(6000);shoot_right.update(-6000);
-            Bullet_supply.update(60);
-            continue;
-        }
+
     }
         if(rc->s_r == KEYBOARD_CONTROL){
-            yaw_target = rc->mouse_x;
-            pit_target = rc->mouse_y;
+            memcpy(&key_g.key,&rc->keyboard.key, sizeof(key_g.key));
+            yaw_control = rc->mouse_x;
+            yaw_control = rc->mouse_y;
             shoot_speed = rc->mouse_l*1000.0f;
         }
         if(rc->s_r == PICTRANS_CONTROL){
-            yaw_target = referee->remote_control.mouse_x;
-            pit_target = referee->remote_control.mouse_y;
+            memcpy(&key_g.key,&referee->remote_control.keyboard, sizeof(key_g.key));
+            yaw_control = referee->remote_control.mouse_x;
+            yaw_control = referee->remote_control.mouse_y;
             shoot_speed = referee->remote_control.mouse_l*1000.0f;
         }
 
-        yaw_target -= static_cast <float> (yaw_target) * 0.020f;
-        pit_target -= static_cast <float> (pit_target) * 0.022f;
-        std::clamp(pit_target,-15.f,20.f);//限幅
+        yaw_target -= -static_cast <float> (1.0*yaw_control) * 0.0020f;
+        pit_target -= -static_cast <float> (1.0*pit_control) * 0.022f;
+        pit_target = std::clamp(pit_target,-15.f,20.f);//限幅
         yaw.update(yaw_target);
         pit.update(pit_target);
 
-        if(press_key_.key.f){
-            shoot_left.update(6000);shoot_right.update(-6000);
+        //开启摩擦轮
+        if(press_key_.key.f ) {
+            shoot_flag ^= 1;
         }
-        Bullet_supply.update(shoot_speed);
-        OS::Task::SleepMilliseconds(1);
+        shoot_left.update(6000*shoot_flag);
+        shoot_right.update(-6000*shoot_flag);
+        Bullet_supply.update(1000*shoot_speed);
+        OS::Task::SleepMilliseconds(10);
     }
 }
 
@@ -126,6 +130,7 @@ void app_gimbal_init() {
     yaw.init(); pit.init();
     shoot_left.init();shoot_right.init();
     Bullet_supply.init();
+
     /*Yaw PID 先为位置环后为速度环*/
     yaw.add_controller(
         [](const auto x) -> double { return yaw_sum_angle; },

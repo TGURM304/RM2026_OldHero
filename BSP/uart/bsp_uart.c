@@ -14,7 +14,7 @@ static UART_HandleTypeDef *handle[UART_ENUM_SIZE] = { NULL };
 static void (*callback[UART_ENUM_SIZE])(bsp_uart_e e, uint8_t *s, uint16_t l);
 
 void bsp_uart_init(bsp_uart_e e, UART_HandleTypeDef *h) {
-    BSP_ASSERT(handle[e] == NULL);
+//    BSP_ASSERT(handle[e] == NULL);
     if(e != E_UART_CDC) handle[e] = h;
 }
 

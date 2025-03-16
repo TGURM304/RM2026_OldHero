@@ -79,7 +79,7 @@ void app_sys_init() {
     // 校验 flash 中的 brief，若此处校验不通过，请连接 terminal 执行 flash clear
     bsp_flash_read("sys", &flash, sizeof(flash));
     if(flash.flag == SYS_FLASH_KEY) {
-        if(strcmp(config.brief, flash.brief) != 0 or (config.type and flash.type != config.type)) {
+        if(strcmp(config.brief, flash.brief) != 0) {
             app_sys_err_mark(SYS_ERR_FLASH_WRONG_BRIEF);
         }
     } else {
