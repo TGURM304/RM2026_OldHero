@@ -63,6 +63,7 @@ const auto referee = app_referee_data();
 float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0,shoot_speed = 0;
 float yaw_control=0,pit_control=0;
 bool shoot_flag = 0;
+bool lst_=0,now_=0,pres_=0;
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
 }
@@ -75,6 +76,7 @@ void app_gimbal_task(void *args) {
     OS::Task::SleepMilliseconds(500);
     bsp_uart_set_callback(E_UART_DEBUG, set_target);
 
+    Bullet_supply.use_extend_angle = 1;Bullet_supply.use_degree_angle = 1;
     while(true) {
         yaw_sum_angle += calc_delta(360, yaw_lst_angle, ins->yaw);
         yaw_lst_angle = ins->yaw;
@@ -98,15 +100,21 @@ void app_gimbal_task(void *args) {
     }
         if(rc->s_r == KEYBOARD_CONTROL){
             memcpy(&key_g.key,&rc->keyboard.key, sizeof(key_g.key));
+            lst_ = now_;now_ = rc->mouse_l;pres_ = (now_ ^lst_)&now_;
             yaw_control = rc->mouse_x;
             yaw_control = rc->mouse_y;
-            shoot_speed = rc->mouse_l*1000.0f;
+            if(pres_) shoot_speed += 60;
+            Bullet_supply.update(1000*rc->mouse_r);
+
         }
-        if(rc->s_r == PICTRANS_CONTROL){
-            memcpy(&key_g.key,&referee->remote_control.keyboard, sizeof(key_g.key));
+        if(rc->s_r == PICTRANS_CONTROL) {
+            memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
+            lst_ = now_;
+            now_ = referee->remote_control.mouse_l;
+            pres_ = (now_ ^ lst_) & now_;if(pres_) shoot_speed += 60;
             yaw_control = referee->remote_control.mouse_x;
             yaw_control = referee->remote_control.mouse_y;
-            shoot_speed = referee->remote_control.mouse_l*1000.0f;
+            Bullet_supply.update(1000*referee->remote_control.mouse_r);
         }
 
         yaw_target -= -static_cast <float> (1.0*yaw_control) * 0.0020f;
@@ -121,7 +129,7 @@ void app_gimbal_task(void *args) {
         }
         shoot_left.update(6000*shoot_flag);
         shoot_right.update(-6000*shoot_flag);
-        Bullet_supply.update(1000*shoot_speed);
+        Bullet_supply.update(-19*shoot_speed);
         OS::Task::SleepMilliseconds(10);
     }
 }
@@ -163,9 +171,9 @@ void app_gimbal_init() {
         nullptr
         ));
     Bullet_supply.add_controller(std::make_unique <Controller::MotorBasePID> (
-        Controller::MotorBasePID::PID_SPEED,
+        Controller::MotorBasePID::PID_SPEED|Controller::MotorBasePID::PID_ANGLE,
         std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 25000, 5000),
-        nullptr
+        std::make_unique <Controller::PID>(5, 0.0, 0.0, 360, 5000)
         ));
     /*低通滤波*/
     yaw.add_controller(

@@ -25,6 +25,8 @@
 #include "ctrl_motor_base_pid.h"
 #include "app_referee.h"
 #include "dev_cap.h"
+#include "bsp_time.h"
+#include "app_referee_ui.h"
 #ifdef COMPILE_CHASSIS
 //@Todo：底盘跟随云台
 
@@ -52,7 +54,7 @@
  *  v_RD = -rotate * sqrt(2) + vy - vx * sqrt(2)
  */
 MotorController RD(std::make_unique <Motor::DJIMotor> (
-    "RD", Motor::DJIMotor::GM6020, (Motor::DJIMotor::Param) { 0x03, E_CAN2, DJIMotor::CURRENT }
+    "RD", Motor::DJIMotor::GM6020, (Motor::DJIMotor::Param) { 0x03, E_CAN2, Motor::DJIMotor::CURRENT }
     ));
 MotorController LU(std::make_unique <Motor::DJIMotor> (
     "chassis_left_up",
@@ -76,12 +78,13 @@ MotorController RU(std::make_unique <Motor::DJIMotor> (
 //    ));
 
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
-double vx = 0, vy = 0;double all_angle = 0,lst_angle = 0;
+double vx = 0, vy = 0;
 // 旋转速度
 double rotate = 0,rotate_1 = 0,rotate_2 = 0;
 double read_rotate(){
     return rotate;
 }
+uint8_t cap_count = 0;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 const auto referee = app_referee_data();
@@ -94,6 +97,7 @@ static float calc_delta(float full, float current, float target) {
     if(2 * dt < -full) dt += full;
     return dt;
 }
+
 // 静态任务，在 CubeMX 中配置
 void app_chassis_task(void *args) {
     // Wait for system init.
@@ -101,10 +105,9 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     while(true) {
-
+        RU.use_degree_angle = 1;
         RU.use_extend_angle = 1;
-        all_angle += calc_delta(360,lst_angle,RU.angle);
-        lst_angle = RU.angle;
+
         //按键状态检测
         lst_keyboard = now_keyboard, now_keyboard = key_c, press_key.raw = (now_keyboard.raw ^ lst_keyboard.raw) & now_keyboard.raw;
 
@@ -128,14 +131,22 @@ void app_chassis_task(void *args) {
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);vy = r * std::sin(theta);
         app_msg_vofa_send(E_UART_DEBUG, {
-                                            1.0*key_c.key.w,
-                                            1.0*referee->remote_control.keyboard.key.w
+                                            RU.angle,
+                                            RU.output
                                         });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;
         RU.update(rotate - vy * M_SQRT2 + vx * M_SQRT2) ;
 
+        //超级电容
+        if(++cap_count == 50) {
+            if(bsp_time_get_ms() - referee->timestamp < 500)
+                CAP::send(referee->robot_status.chassis_power_limit);
+            else
+                CAP::send(40);
+            cap_count = 0;
+        }
 
         OS::Task::SleepMilliseconds(1);
     }
@@ -159,22 +170,16 @@ RU.add_controller(std::make_unique <Controller::MotorBasePID> (
     std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 16384, 1000),
     nullptr
     ));
-RD.add_controller(
-    [](const auto x) -> double { return all_angle; },
-    std::make_unique <Controller::PID> (10, 0, 0, 360, 0)
-);
-RD.add_controller(
-    [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
-    std::make_unique <Controller::PID> (60, 0.8, 0.0, 25000, 20000)
-);
-//RD.add_controller(std::make_unique <Controller::MotorBasePID> (
-//    Controller::MotorBasePID::PID_SPEED,
-//    std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 16384, 1000),
-//    nullptr
-//    ));
+
+RD.add_controller(std::make_unique <Controller::MotorBasePID> (
+    Controller::MotorBasePID::PID_SPEED,
+    std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 16384, 1000),
+    nullptr
+    ));
 
 LU.init(); LD.init(); RU.init(); RD.init();
-//    LU.relax(); LD.relax(); RU.relax(); RD.relax();
+    LU.relax(); LD.relax();  RD.relax();
+//    RU.relax();
 }
 
 #endif
