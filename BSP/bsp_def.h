@@ -22,6 +22,7 @@ __attribute__((unused)) static void bsp_assert_err(const char* file, uint32_t li
     vTaskSuspendAll();
     bsp_led_set(255, 0, 0);
     bsp_uart_printf(E_UART_DEBUG, "[Err] BSP Assert error at %s:%lu\r\n", file, line);
+
     while(1) __NOP();
 }
 

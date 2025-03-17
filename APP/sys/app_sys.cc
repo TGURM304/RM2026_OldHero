@@ -27,6 +27,7 @@
 #include "app_sys_err.h"
 #include "app_terminal.h"
 #include "bsp_flash.h"
+#include "app_referee.h"
 
 #include <cstring>
 
@@ -73,6 +74,9 @@ void app_sys_init() {
 #ifdef COMPILE_GIMBAL
     config.type |= 0b10;
     app_gimbal_init();
+#endif
+#ifdef USE_REFEREE_SYSTEM
+    app_referee_init();
 #endif
 
 #ifdef USE_FLASH_CHECK

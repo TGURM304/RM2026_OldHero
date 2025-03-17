@@ -75,7 +75,7 @@ void app_gimbal_task(void *args) {
     while(!app_sys_ready())
 
     OS::Task::SleepMilliseconds(500);
-    bsp_uart_set_callback(E_UART_DEBUG, set_target);
+//    bsp_uart_set_callback(E_UART_DEBUG, set_target);
 
     Bullet_supply.use_extend_angle = 1;Bullet_supply.use_degree_angle = 1;
     while(true) {
@@ -95,41 +95,35 @@ void app_gimbal_task(void *args) {
         }
 
         if(rc->s_r==RC_CONTROL){
-        yaw_target -= (rc->rc_r[0] * 0.001f);
-        pit_target += (rc->rc_r[1] * 0.002f);
+            yaw_target -= (rc->rc_r[0] * 0.01f);
+            pit_target -= (rc->rc_r[1] * 0.02f);
 
-    }
+        }
         if(rc->s_r == KEYBOARD_CONTROL){
             memcpy(&key_g.key,&rc->keyboard.key, sizeof(key_g.key));
             lst_ = now_;now_ = rc->mouse_l;pres_ = (now_ ^lst_)&now_;
             yaw_control = rc->mouse_x;
-            yaw_control = rc->mouse_y;
+            pit_control = rc->mouse_y;
             if(pres_) shoot_speed += 60;
-            Bullet_supply.update(1000*rc->mouse_r);
-
         }
         if(rc->s_r == PICTRANS_CONTROL) {
             memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
             lst_ = now_;
             now_ = referee->remote_control.mouse_l;
-            pres_ = (now_ ^ lst_) & now_;if(pres_) shoot_speed += 60;
+            pres_ = (now_ ^ lst_) & now_;if(pres_)
+            if(pres_) shoot_speed += 60;
             yaw_control = referee->remote_control.mouse_x;
-            yaw_control = referee->remote_control.mouse_y;
+            pit_control = referee->remote_control.mouse_y;
             Bullet_supply.update(1000*referee->remote_control.mouse_r);
         }
-        yaw_target -= -static_cast <float> (1.0*yaw_control) * 0.0020f;
-        pit_target -= -static_cast <float> (1.0*pit_control) * 0.022f;
-        pit_target = std::clamp(pit_target,-15.f,25.f);//限幅
+
+        yaw_target -= static_cast <float> (1.0*yaw_control) * 0.020f;
+        pit_target -= static_cast <float> (1.0*pit_control) * 0.012f;
+        pit_target = std::clamp(pit_target,-10.f,25.f);//限幅
         yaw.update(yaw_target);
         pit.update(pit_target);
 
-        app_msg_vofa_send(E_UART_DEBUG,{
-            1.0*yaw.angle,
-            1.0*yaw.speed,
-
-        });
-
-            //开启摩擦轮
+        //开启摩擦轮
         if(press_key_.key.f ) {
             shoot_flag ^= 1;
         }
@@ -148,22 +142,22 @@ void app_gimbal_init() {
     /*Yaw PID 先为位置环后为速度环*/
     yaw.add_controller(
         [](const auto x) -> double { return yaw_sum_angle; },
-        std::make_unique <PID> (10, 0, 0, 360, 0)
+        std::make_unique <PID> (16, 0, 0, 720, 0)
     );
     yaw.add_controller(
         [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
-        std::make_unique <PID> (60, 0.8, 0.0, 25000, 20000)
+        std::make_unique <PID> (95, 2.5, 0.0, 25000, 20000)
     );
 
     /*Pit PID 先为位置环后为速度环*/
     pit.add_controller(
         [](const auto x) -> double { return ins->roll; },
-        std::make_unique <PID> (10, 0, 0.0, 45, 0)
+        std::make_unique <PID> (14, 0, 0.0, 120, 0)
     );
 
     pit.add_controller(
     [](const auto x) -> double { return ins->raw.gyro[0]/ M_PI * 180; },
-    std::make_unique <PID> (150, 0.1, 0.05, 25000, 5000));
+    std::make_unique <PID> (120, 1.5, 0.0, 25000, 5000));
 
     shoot_left.add_controller(std::make_unique <Controller::MotorBasePID> (
         Controller::MotorBasePID::PID_SPEED,
@@ -181,14 +175,13 @@ void app_gimbal_init() {
         std::make_unique <Controller::PID>(5, 0.0, 0.0, 360, 5000)
         ));
 
-    yaw.add_controller(std::make_unique<Controller::ForwardFeed>());
-    pit.add_controller(std::make_unique<Controller::ForwardFeed>());
+
     /*低通滤波*/
     yaw.add_controller(
-        std::make_unique <LowPassFilter> (50, 0.001)
+        std::make_unique <LowPassFilter> (150, 0.001)
     );
     pit.add_controller(
-        std::make_unique <LowPassFilter> (50, 0.001)
+        std::make_unique <LowPassFilter> (150, 0.001)
     );
 }
 //    pit.relax();
