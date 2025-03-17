@@ -53,9 +53,9 @@
  *  v_RU = -rotate * sqrt(2) + vy - vx * sqrt(2)
  *  v_RD = -rotate * sqrt(2) + vy - vx * sqrt(2)
  */
-MotorController RD(std::make_unique <Motor::DJIMotor> (
-    "RD", Motor::DJIMotor::GM6020, (Motor::DJIMotor::Param) { 0x03, E_CAN2, Motor::DJIMotor::CURRENT }
-    ));
+// MotorController RD(std::make_unique <Motor::DJIMotor> (
+//     "RD", Motor::DJIMotor::GM6020, (Motor::DJIMotor::Param) { 0x03, E_CAN2, Motor::DJIMotor::CURRENT }
+//     ));
 MotorController LU(std::make_unique <Motor::DJIMotor> (
     "chassis_left_up",
     Motor::DJIMotor::M3508,
@@ -71,11 +71,11 @@ MotorController RU(std::make_unique <Motor::DJIMotor> (
     Motor::DJIMotor::M3508,
     (Motor::DJIMotor::Param) { .id = 0x02, .port = E_CAN2, .mode = Motor::DJIMotor::CURRENT }
     ));
-//MotorController RD(std::make_unique <Motor::DJIMotor> (
-//    "chassis_right_down",
-//    Motor::DJIMotor::M3508,
-//    (Motor::DJIMotor::Param) { .id = 0x03, .port = E_CAN2, .mode = Motor::DJIMotor::CURRENT }
-//    ));
+MotorController RD(std::make_unique <Motor::DJIMotor> (
+    "chassis_right_down",
+    Motor::DJIMotor::M3508,
+    (Motor::DJIMotor::Param) { .id = 0x03, .port = E_CAN2, .mode = Motor::DJIMotor::CURRENT }
+    ));
 
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
 double vx = 0, vy = 0;
@@ -105,8 +105,7 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     while(true) {
-        RU.use_degree_angle = 1;
-        RU.use_extend_angle = 1;
+
 
         //按键状态检测
         lst_keyboard = now_keyboard, now_keyboard = key_c, press_key.raw = (now_keyboard.raw ^ lst_keyboard.raw) & now_keyboard.raw;
@@ -115,25 +114,38 @@ void app_chassis_task(void *args) {
             vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
 
         }
-        if(rc->s_r==KEYBOARD_CONTROL)
-            memcpy(&key_c.key,&rc->keyboard.key, sizeof(key_c.key));
+        if(rc->s_r == PICTRANS_CONTROL or rc->s_r == KEYBOARD_CONTROL) {
+            if(rc->s_r==KEYBOARD_CONTROL) {
+                memcpy(&key_c.key,&rc->keyboard.key, sizeof(key_c.key));
+            }
 
-        if(rc->s_r==PICTRANS_CONTROL)
-            memcpy(&key_c.key,&referee->remote_control.keyboard, sizeof(key_c.key));
+
+             if(rc->s_r==PICTRANS_CONTROL) {
+                 memcpy(&key_c.key,&referee->remote_control.keyboard, sizeof(key_c.key));
+             }
 
             vx = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
             vy = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
             rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
+
             if(press_key.key.v) rotate_2 = rotate_2 == 3000 ? 0 : rotate_2 + 1000;
             rotate = rotate_1+rotate_2;
 
+
+        }
+
+
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
-        vx = r * std::cos(theta);vy = r * std::sin(theta);
-        app_msg_vofa_send(E_UART_DEBUG, {
-                                            RU.angle,
-                                            RU.output
-                                        });
+        vx = r * std::cos(theta);
+        vy = r * std::sin(theta);
+
+        // app_msg_vofa_send(E_UART_DEBUG, {
+        //     1.0*rc->s_r,
+        //     LU.target(),
+        //     1.0*vx
+        //
+        //                                 });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;
@@ -178,7 +190,7 @@ RD.add_controller(std::make_unique <Controller::MotorBasePID> (
     ));
 
 LU.init(); LD.init(); RU.init(); RD.init();
-    LU.relax(); LD.relax();  RD.relax();
+    // LU.relax(); LD.relax();  RD.relax();
 //    RU.relax();
 }
 

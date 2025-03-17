@@ -94,8 +94,8 @@ void app_gimbal_task(void *args) {
         }
 
         if(rc->s_r==RC_CONTROL){
-        yaw_target += (rc->rc_r[0] * 0.1f);
-        pit_target += (rc->rc_r[1] * 0.2f);
+        yaw_target -= (rc->rc_r[0] * 0.001f);
+        pit_target += (rc->rc_r[1] * 0.002f);
 
     }
         if(rc->s_r == KEYBOARD_CONTROL){
@@ -119,9 +119,15 @@ void app_gimbal_task(void *args) {
 
         yaw_target -= -static_cast <float> (1.0*yaw_control) * 0.0020f;
         pit_target -= -static_cast <float> (1.0*pit_control) * 0.022f;
-        pit_target = std::clamp(pit_target,-15.f,20.f);//限幅
+        pit_target = std::clamp(pit_target,-15.f,25.f);//限幅
         yaw.update(yaw_target);
         pit.update(pit_target);
+
+        app_msg_vofa_send(E_UART_DEBUG,{
+            1.0*yaw.angle,
+            1.0*yaw.speed,
+
+        });
 
         //开启摩擦轮
         if(press_key_.key.f ) {
@@ -158,7 +164,7 @@ void app_gimbal_init() {
 
     pit.add_controller(
     [](const auto x) -> double { return ins->raw.gyro[0]/ M_PI * 180; },
-    std::make_unique <PID> (100, 0.0, 0.05, 25000, 5000));
+    std::make_unique <PID> (150, 0.1, 0.05, 25000, 5000));
 
     shoot_left.add_controller(std::make_unique <Controller::MotorBasePID> (
         Controller::MotorBasePID::PID_SPEED,
