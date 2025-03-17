@@ -27,8 +27,9 @@
 #include "dev_cap.h"
 #include "bsp_time.h"
 #include "app_referee_ui.h"
+#include "bsp_rng.h"
 #ifdef COMPILE_CHASSIS
-//@Todo：底盘跟随云台
+//@Todo：底盘跟随云台 完善UI
 
 /*
  *  适用于麦克纳姆轮（民航英雄）
@@ -81,16 +82,17 @@ MotorController RD(std::make_unique <Motor::DJIMotor> (
 double vx = 0, vy = 0;
 // 旋转速度
 double rotate = 0,rotate_1 = 0,rotate_2 = 0;
-double read_rotate(){
-    return rotate;
-}
-uint8_t cap_count = 0;
+bool status = 1;
+uint8_t cap_count = 0,ui_count = 0;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 const auto referee = app_referee_data();
 
 constexpr int16_t yaw_zero_position = 9124;
+
 bsp_rc_keyboard_u lst_keyboard,now_keyboard,press_key,key_c;
+app_ui_data_t referee_ui;app_ui_dot_t referee_ui_;
+
 static float calc_delta(float full, float current, float target) {
     float dt = target - current;
     if(2 * dt >  full) dt -= full;
@@ -114,11 +116,9 @@ void app_chassis_task(void *args) {
             vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
 
         }
-        if(rc->s_r == PICTRANS_CONTROL or rc->s_r == KEYBOARD_CONTROL) {
             if(rc->s_r==KEYBOARD_CONTROL) {
                 memcpy(&key_c.key,&rc->keyboard.key, sizeof(key_c.key));
             }
-
 
              if(rc->s_r==PICTRANS_CONTROL) {
                  memcpy(&key_c.key,&referee->remote_control.keyboard, sizeof(key_c.key));
@@ -126,14 +126,12 @@ void app_chassis_task(void *args) {
 
             vx = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
             vy = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
-            rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
 
+            rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
             if(press_key.key.v) rotate_2 = rotate_2 == 3000 ? 0 : rotate_2 + 1000;
             rotate = rotate_1+rotate_2;
-
-
-        }
-
+            //底盘跟随云台 其中838是云台正对正方向时的编码器角度
+            if(press_key.key.ctrl)rotate_2 = 838-read_yaw_angle();
 
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
@@ -159,7 +157,23 @@ void app_chassis_task(void *args) {
                 CAP::send(40);
             cap_count = 0;
         }
+        //UI界面
+        app_ui_add_init();
+        if(++ui_count >= 50) {
+            ui_count = 50;
+            // referee_ui.ui_pit = 0.01f*bsp_rng_random(0,100)*bsp_rng_random(-40,40);
+            referee_ui.ui_pit = ins->roll;
+            referee_ui.s_sum  = (int16_t)bsp_rng_random(0, 200);
+            referee_ui.En     = CAP::data()->cap_percent;
+            referee_ui.cis = ((yaw_zero_position - static_cast<int16_t>(read_yaw_angle()) + 8192) % 8192) * 360 / 8192;
 
+            referee_ui_.rotate = rotate;
+            referee_ui_.ui_rst = press_key.key.b;//按下B就reset
+            if(referee->robot_status.current_HP == 0 )status = 1 ;
+            referee_ui_.ui_die = status;
+            app_ui_dot_update(&referee_ui, &referee_ui_);
+            app_ui_task(&referee_ui);
+        }
         OS::Task::SleepMilliseconds(1);
     }
 }

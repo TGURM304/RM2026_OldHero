@@ -20,7 +20,7 @@
 #include "app_referee.h"
 #ifdef COMPILE_GIMBAL
 
-//@Todo:单发射击限位 键盘检测控制 图传模块 PID调参
+//@Todo:单发射击限位 键盘检测控制 图传模块z PID调参
 using namespace Motor;
 using namespace Controller;
 

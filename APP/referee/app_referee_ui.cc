@@ -57,7 +57,6 @@ void app_ui_dot_update(app_ui_data_t *ui, const app_ui_dot_t* ui_) {
     ui->dot.set(4, ui_->ui_die);
 }
 
-
 void app_ui_task(app_ui_data_t *ui) {
     if(++count == 50) {
         count = 0;

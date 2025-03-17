@@ -8,7 +8,6 @@
 #include <cstdint>
 #include "bsp_rc.h"
 #include "app_chassis.h"
-
 //ser_state,vison_state,shoot,spin,d
 struct app_ui_data_t {
     std::bitset<5> dot;
@@ -23,10 +22,10 @@ struct app_ui_data_t {
 };
 
 struct app_ui_dot_t{
-    bool ui_rst = bsp_rc_data()->keyboard.key.b;
+    bool ui_rst =1;
     bool ui_shoot = 1;
     bool ui_die = 1;
-    double rotate = read_rotate();
+    double rotate ;
 
 };
 void app_ui_add_init();
