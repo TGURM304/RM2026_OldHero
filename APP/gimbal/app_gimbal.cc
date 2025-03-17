@@ -47,9 +47,18 @@ MotorController Bullet_supply(std::make_unique <Motor::DJIMotor> (
     Motor::DJIMotor::M3508,
     (Motor::DJIMotor::Param) { .id = 0x03, .port = E_CAN1, .mode = Motor::DJIMotor::CURRENT }
     ));
-uint32_t read_yaw_angle(){
+float read_yaw_angle(){
     return yaw.angle;
 }
+float map_angle(){
+    const int ANGLE_ZERO =858;
+    const int ANGLE_MAX = 9050;
+    uint16_t angle= 0;float angle_ = 0 ;
+    angle = ((uint16_t)yaw.angle - ANGLE_ZERO +8192) % 8192;
+    angle_ = angle*360.0f/8192.0f;
+    if(angle_>180){angle_-=360.0f;}
+    return angle_;
+};
 static float calc_delta(float full, float current, float target) {
     float dt = target - current;
     if(2 * dt >  full) dt -= full;

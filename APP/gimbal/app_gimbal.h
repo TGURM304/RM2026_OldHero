@@ -15,7 +15,8 @@ extern "C" {
  * 云台初始化 (随系统初始化调用)
  */
 void app_gimbal_init();
-uint32_t read_yaw_angle();
+float read_yaw_angle();
+float map_angle();
 /*!
  * 云台任务
  * @param args RTOS 任务参数

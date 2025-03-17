@@ -82,7 +82,7 @@ MotorController RD(std::make_unique <Motor::DJIMotor> (
 double vx = 0, vy = 0;
 // 旋转速度
 double rotate = 0,rotate_1 = 0,rotate_2 = 0;
-bool status = 1;
+bool status = 1,follow_state = 0;
 uint8_t cap_count = 0,ui_count = 0;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
@@ -107,7 +107,6 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     app_ui_add_init();
-    ui_reset(1);
     while(true) {
 
         //按键状态检测
@@ -128,20 +127,32 @@ void app_chassis_task(void *args) {
             vx = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
             vy = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
 
-            rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
-            if(press_key.key.v) rotate_2 = rotate_2 == 3000 ? 0 : rotate_2 + 1000;
+            if(press_key.key.ctrl){follow_state^=1;}
+            //小陀螺模式
+            if(press_key.key.v){
+                rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
+                rotate_2 = rotate_2 >= 3000 ? 0 : rotate_2 + 1000;
+                follow_state = 0;
+            }
+            //底盘跟随云台
+            else if (follow_state) {
+                rotate_1 = 0;
+                rotate_2 = -map_angle() * 30;
+            }
+                //            else {
+//                rotate_2 = 0;  // 防止残留值影响
+//            }
             rotate = rotate_1+rotate_2;
-            //底盘跟随云台 其中838是云台正对正方向时的编码器角度
-//            if(press_key.key.ctrl){rotate_2 = 838-read_yaw_angle();}
-
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);
         vy = r * std::sin(theta);
 
          app_msg_vofa_send(E_UART_DEBUG, {
-             1.0*key_c.key.w,
-             1.0*referee->remote_control.mouse_l,
+             rotate_1,
+             rotate_2,
+             1.0*map_angle(),
+             follow_state*1.0
 
                                          });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
@@ -167,7 +178,8 @@ void app_chassis_task(void *args) {
             referee_ui.cis = ((yaw_zero_position - static_cast<int16_t>(read_yaw_angle()) + 8192) % 8192) * 360 / 8192;
 
             referee_ui_.rotate = rotate;
-            referee_ui_.ui_rst = press_key.key.b;//按下B就reset
+            if(key_c.key.b)referee_ui_.ui_rst ^=1;
+            ui_reset(referee_ui_.ui_rst);
             if(referee->robot_status.current_HP == 0 )status = 1 ;
             referee_ui_.ui_die = status;
             app_ui_dot_update(&referee_ui, &referee_ui_);
@@ -202,8 +214,7 @@ RD.add_controller(std::make_unique <Controller::MotorBasePID> (
     ));
 
 LU.init(); LD.init(); RU.init(); RD.init();
-    // LU.relax(); LD.relax();  RD.relax();
-//    RU.relax();
+//     LU.relax(); LD.relax();  RD.relax();RU.relax();
 }
 
 #endif
