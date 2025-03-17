@@ -18,6 +18,7 @@
 #include "ctrl_low_pass_filter.h"
 #include "bsp_time.h"
 #include "app_referee.h"
+#include "ctrl_forward_feed.h"
 #ifdef COMPILE_GIMBAL
 
 //@Todo:单发射击限位 键盘检测控制 图传模块z PID调参
@@ -116,7 +117,6 @@ void app_gimbal_task(void *args) {
             yaw_control = referee->remote_control.mouse_y;
             Bullet_supply.update(1000*referee->remote_control.mouse_r);
         }
-
         yaw_target -= -static_cast <float> (1.0*yaw_control) * 0.0020f;
         pit_target -= -static_cast <float> (1.0*pit_control) * 0.022f;
         pit_target = std::clamp(pit_target,-15.f,25.f);//限幅
@@ -129,7 +129,7 @@ void app_gimbal_task(void *args) {
 
         });
 
-        //开启摩擦轮
+            //开启摩擦轮
         if(press_key_.key.f ) {
             shoot_flag ^= 1;
         }
@@ -154,7 +154,6 @@ void app_gimbal_init() {
         [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
         std::make_unique <PID> (60, 0.8, 0.0, 25000, 20000)
     );
-
 
     /*Pit PID 先为位置环后为速度环*/
     pit.add_controller(
@@ -181,6 +180,9 @@ void app_gimbal_init() {
         std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 25000, 5000),
         std::make_unique <Controller::PID>(5, 0.0, 0.0, 360, 5000)
         ));
+
+    yaw.add_controller(std::make_unique<Controller::ForwardFeed>());
+    pit.add_controller(std::make_unique<Controller::ForwardFeed>());
     /*低通滤波*/
     yaw.add_controller(
         std::make_unique <LowPassFilter> (50, 0.001)
