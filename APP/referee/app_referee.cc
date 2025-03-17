@@ -197,7 +197,7 @@ void app_referee_ui_del(
 }
 
 void ui_task(void *args) {
-    uint16_t sender = 3, receiver = 0x0103;
+    uint16_t sender = 1, receiver = 0x0101;
     while(true) {
         while(!ui_figure_queue_.size() and !ui_string_queue_.size())
             OS::Task::SleepMilliseconds(1);

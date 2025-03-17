@@ -107,7 +107,7 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(10);
 
     app_ui_add_init();
-
+    ui_reset(1);
     while(true) {
 
         //按键状态检测
@@ -132,18 +132,18 @@ void app_chassis_task(void *args) {
             if(press_key.key.v) rotate_2 = rotate_2 == 3000 ? 0 : rotate_2 + 1000;
             rotate = rotate_1+rotate_2;
             //底盘跟随云台 其中838是云台正对正方向时的编码器角度
-            if(press_key.key.ctrl){rotate_2 = 838-read_yaw_angle();}
+//            if(press_key.key.ctrl){rotate_2 = 838-read_yaw_angle();}
 
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);
         vy = r * std::sin(theta);
 
-//         app_msg_vofa_send(E_UART_DEBUG, {
-//             1.0*read_yaw_angle(),
-//             ins->yaw,
-//             rotate_2
-//                                         });
+         app_msg_vofa_send(E_UART_DEBUG, {
+             1.0*key_c.key.w,
+             1.0*referee->remote_control.mouse_l,
+
+                                         });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;
@@ -168,7 +168,6 @@ void app_chassis_task(void *args) {
 
             referee_ui_.rotate = rotate;
             referee_ui_.ui_rst = press_key.key.b;//按下B就reset
-            ui_reset(1);
             if(referee->robot_status.current_HP == 0 )status = 1 ;
             referee_ui_.ui_die = status;
             app_ui_dot_update(&referee_ui, &referee_ui_);
@@ -177,7 +176,6 @@ void app_chassis_task(void *args) {
         OS::Task::SleepMilliseconds(1);
     }
 }
-
 
 void app_chassis_init() {
     CAP::init();
