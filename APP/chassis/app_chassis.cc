@@ -29,7 +29,7 @@
 #include "app_referee_ui.h"
 #include "bsp_rng.h"
 #ifdef COMPILE_CHASSIS
-//@Todo：底盘跟随云台 完善UI
+//@Todo： 完善UI
 
 /*
  *  适用于麦克纳姆轮（民航英雄）
