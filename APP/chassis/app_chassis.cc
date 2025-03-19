@@ -30,7 +30,7 @@
 #include "bsp_rng.h"
 #ifdef COMPILE_CHASSIS
 //@Todo： 完善UI
-
+//@Todo: 旋转功率策略 图传键盘
 /*
  *  适用于麦克纳姆轮（民航英雄）
  *  实现了基础的旋转、平移
@@ -130,31 +130,26 @@ void app_chassis_task(void *args) {
             if(press_key.key.ctrl){follow_state^=1;}
             //小陀螺模式
             if(press_key.key.v){
-                rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
-                rotate_2 = rotate_2 >= 3000 ? 0 : rotate_2 + 1000;
+
+                rotate_2 = rotate_2 >= (referee->robot_status.robot_level*500+2000) ? 0 : rotate_2 + 1000;
                 follow_state = 0;
             }
             //底盘跟随云台
             else if (follow_state) {
                 rotate_1 = 0;
-                rotate_2 = -map_angle() * 30;
+                rotate_2 = -follow_state*map_angle() * 40;
             }
                 //            else {
 //                rotate_2 = 0;  // 防止残留值影响
 //            }
+            rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
             rotate = rotate_1+rotate_2;
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);
         vy = r * std::sin(theta);
 
-         app_msg_vofa_send(E_UART_DEBUG, {
-             rotate_1,
-             rotate_2,
-             1.0*map_angle(),
-             follow_state*1.0
 
-                                         });
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;

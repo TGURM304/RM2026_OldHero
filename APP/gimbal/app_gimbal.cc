@@ -57,6 +57,10 @@ float map_angle(){
     angle = ((uint16_t)yaw.angle - ANGLE_ZERO +8192) % 8192;
     angle_ = angle*360.0f/8192.0f;
     if(angle_>180){angle_-=360.0f;}
+
+    if(abs((int)angle_)<15||abs((int)angle_)>165||(abs((int)angle_)<95&&abs((int)angle_)>85))angle_=0;//四个死区 位于车身四周
+    if(abs((int)angle_)>90)angle_ = angle_>0?angle_-180.0f:angle_+180.0f;//优劣弧
+
     return angle_;
 };
 static float calc_delta(float full, float current, float target) {
@@ -65,7 +69,7 @@ static float calc_delta(float full, float current, float target) {
     if(2 * dt < -full) dt += full;
     return dt;
 }
-bsp_rc_keyboard_u lst_keyboard_,now_keyboard_,press_key_,key_g;;
+bsp_rc_keyboard_u lst_keyboard_,now_keyboard_,press_key_,key_g;
 const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 const auto referee = app_referee_data();
@@ -74,6 +78,7 @@ float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_targe
 float yaw_control=0,pit_control=0;
 bool shoot_flag = 0;
 bool lst_=0,now_=0,pres_=0;
+
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
 }
@@ -117,9 +122,7 @@ void app_gimbal_task(void *args) {
         }
         if(rc->s_r == PICTRANS_CONTROL) {
             memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
-            lst_ = now_;
-            now_ = referee->remote_control.mouse_l;
-            pres_ = (now_ ^ lst_) & now_;if(pres_)
+            lst_ = now_;now_ = referee->remote_control.mouse_l; pres_ = (now_ ^ lst_) & now_;
             if(pres_) shoot_speed += 60;
             yaw_control = referee->remote_control.mouse_x;
             pit_control = referee->remote_control.mouse_y;
@@ -132,6 +135,10 @@ void app_gimbal_task(void *args) {
         yaw.update(yaw_target);
         pit.update(pit_target);
 
+        app_msg_vofa_send(E_UART_DEBUG, {
+                                            Bullet_supply.current,
+                                            Bullet_supply.angle
+                                        });
         //开启摩擦轮
         if(press_key_.key.f ) {
             shoot_flag ^= 1;
@@ -140,6 +147,14 @@ void app_gimbal_task(void *args) {
         shoot_right.update(-6000*shoot_flag);
         Bullet_supply.update(-19*shoot_speed);
         OS::Task::SleepMilliseconds(10);
+        //堵转保护
+        if(bsp_time_get_ms() - Bullet_supply.device()->last_online_time > 100 && Bullet_supply.current>10000){
+            Bullet_supply.relax();
+        }
+        if(bsp_time_get_ms() - shoot_left.device()->last_online_time > 100 && shoot_left.current>10000){
+            shoot_left.relax();shoot_right.relax();
+        }
+        Bullet_supply.relax();
     }
 }
 
@@ -184,7 +199,6 @@ void app_gimbal_init() {
         std::make_unique <Controller::PID>(5, 0.0, 0.0, 360, 5000)
         ));
 
-
     /*低通滤波*/
     yaw.add_controller(
         std::make_unique <LowPassFilter> (150, 0.001)
@@ -195,4 +209,5 @@ void app_gimbal_init() {
 }
 //    pit.relax();
 //        yaw.relax();
+
 #endif
