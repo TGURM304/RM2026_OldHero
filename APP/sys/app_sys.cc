@@ -77,6 +77,7 @@ void app_sys_init() {
 #endif
 #ifdef USE_REFEREE_SYSTEM
     app_referee_init();
+    app_pic_control_init();
 #endif
 
 #ifdef USE_FLASH_CHECK

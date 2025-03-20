@@ -15,6 +15,7 @@ struct app_referee_header_t {
 } __attribute__ ((packed));
 
 void app_referee_init();
+void app_pic_control_init();
 const app_referee_data_t *app_referee_data();
 
 void app_referee_ui_add(

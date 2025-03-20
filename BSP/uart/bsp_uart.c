@@ -44,7 +44,7 @@ void bsp_uart_printf(bsp_uart_e e, const char *fmt, ...) {
     va_start(ap, fmt);
     uint16_t len = vsnprintf(uart_tx_buf, UART_BUFFER_SIZE, fmt, ap);
     va_end(ap);
-    bsp_uart_send(e, uart_tx_buf, len);
+//    bsp_uart_send(e, uart_tx_buf, len);
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *h, uint16_t l) {

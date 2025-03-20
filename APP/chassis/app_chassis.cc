@@ -79,7 +79,7 @@ MotorController RD(std::make_unique <Motor::DJIMotor> (
     ));
 
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
-double vx = 0, vy = 0;
+double vx = 0, vy = 0,vmax=0;
 // 旋转速度
 double rotate = 0,rotate_1 = 0,rotate_2 = 0;
 bool status = 1,follow_state = 0;
@@ -109,29 +109,36 @@ void app_chassis_task(void *args) {
     app_ui_add_init();
     while(true) {
 
-        //按键状态检测
+        //按键状态检测->默认图传控制
         lst_keyboard = now_keyboard, now_keyboard = key_c, press_key.raw = (now_keyboard.raw ^ lst_keyboard.raw) & now_keyboard.raw;
 
         if(rc->s_r==RC_CONTROL) {
             vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
+            if(rc->s_l==1)rotate=3000;
+            if(rc->s_l==0)rotate=0;
 
         }
+        //使用键盘控制
+        else{
             if(rc->s_r==KEYBOARD_CONTROL) {
                 memcpy(&key_c.key,&rc->keyboard.key, sizeof(key_c.key));
             }
 
-             if(rc->s_r==PICTRANS_CONTROL) {
-                 memcpy(&key_c.key,&referee->remote_control.keyboard, sizeof(key_c.key));
-             }
+            else {
+                memcpy(&key_c.key, &referee->remote_control.keyboard, sizeof(key_c.key));
+            }
 
-            vx = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
-            vy = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
+                vmax = 1000.f + 300.f * referee->robot_status.robot_level;
+                vx   = vx == vmax ? vmax : vx + 1.0 * key_c.key.d * 500.f - 1.0 * key_c.key.a * 500.f;
+                vy   = vy == vmax ? vmax : vy + 1.0 * key_c.key.w * 500.f - 1.0 * key_c.key.s * 500.f;
+                vx   = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
+                vy   = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
 
             if(press_key.key.ctrl){follow_state^=1;}
             //小陀螺模式
             if(press_key.key.v){
 
-                rotate_2 = rotate_2 >= (referee->robot_status.robot_level*500+2000) ? 0 : rotate_2 + 1000;
+                rotate_2 = rotate_2 >= (vmax+1000.f) ? 0 : rotate_2 + 1000;
                 follow_state = 0;
             }
             //底盘跟随云台
@@ -144,6 +151,7 @@ void app_chassis_task(void *args) {
 //            }
             rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
             rotate = rotate_1+rotate_2;
+        }
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
         vx = r * std::cos(theta);
@@ -160,7 +168,7 @@ void app_chassis_task(void *args) {
             if(bsp_time_get_ms() - referee->timestamp < 500)
                 CAP::send(referee->robot_status.chassis_power_limit);
             else
-                CAP::send(40);
+                CAP::send(70);
             cap_count = 0;
         }
         //UI界面

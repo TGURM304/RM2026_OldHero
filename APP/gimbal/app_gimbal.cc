@@ -21,7 +21,7 @@
 #include "ctrl_forward_feed.h"
 #ifdef COMPILE_GIMBAL
 
-//@Todo:单发射击限位 键盘检测控制 图传模块z PID调参
+//@Todo：拨弹轮优化 图传电路键盘 功率控制
 using namespace Motor;
 using namespace Controller;
 
@@ -74,10 +74,11 @@ const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 const auto referee = app_referee_data();
 
-float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0,shoot_speed = 0;
+float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0, yaw_target = 0,pit_target = 0,shoot_speed = 0,return_speed=0;
 float yaw_control=0,pit_control=0;
 bool shoot_flag = 0;
-bool lst_=0,now_=0,pres_=0;
+bool lst_=0,now_=0,pres_l=0;
+bool lst =0,now=0,pres_r=0;
 
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
@@ -111,51 +112,75 @@ void app_gimbal_task(void *args) {
         if(rc->s_r==RC_CONTROL){
             yaw_target -= (rc->rc_r[0] * 0.01f);
             pit_target -= (rc->rc_r[1] * 0.02f);
+            if(rc->s_l==-1){
+            shoot_left.update(6000);shoot_right.update(-6000);
+            Bullet_supply.update(-19*60*10);
+            }
+            if(rc->s_l==0){
+                shoot_left.update(0);shoot_right.update(0);
+                Bullet_supply.update(0);
+            }
+        }
+        //使用键盘控制
+        else {
+            if(rc->s_r == KEYBOARD_CONTROL) {
+                memcpy(&key_g.key, &rc->keyboard.key, sizeof(key_g.key));
+                lst_        = now_;
+                now_        = rc->mouse_l;
+                pres_l      = (now_ ^ lst_) & now_;
+                lst         = now;
+                now         = rc->mouse_r;
+                pres_r      = (now ^ lst) & now;
+                yaw_control = rc->mouse_x;
+                pit_control = rc->mouse_y;
+                if(pres_l) shoot_speed += 60;
+                if(pres_r) return_speed += 1000;
+                //图传电路
+            } else {
+                memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
+                lst_        = now_;
+                now_        = referee->remote_control.mouse_l;
+                pres_l      = (now_ ^ lst_) & now_;
+                lst         = now;
+                now         = referee->remote_control.mouse_r;
+                pres_r      = (now ^ lst) & now;
+                yaw_control = referee->remote_control.mouse_x;
+                pit_control = referee->remote_control.mouse_y;
+                if(pres_l) shoot_speed += 60;
+                if(pres_r) return_speed += 1000;
+            }
 
-        }
-        if(rc->s_r == KEYBOARD_CONTROL){
-            memcpy(&key_g.key,&rc->keyboard.key, sizeof(key_g.key));
-            lst_ = now_;now_ = rc->mouse_l;pres_ = (now_ ^lst_)&now_;
-            yaw_control = rc->mouse_x;
-            pit_control = rc->mouse_y;
-            if(pres_) shoot_speed += 60;
-        }
-        if(rc->s_r == PICTRANS_CONTROL) {
-            memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
-            lst_ = now_;now_ = referee->remote_control.mouse_l; pres_ = (now_ ^ lst_) & now_;
-            if(pres_) shoot_speed += 60;
-            yaw_control = referee->remote_control.mouse_x;
-            pit_control = referee->remote_control.mouse_y;
-            Bullet_supply.update(1000*referee->remote_control.mouse_r);
-        }
+            yaw_target -= static_cast<float>(1.0 * yaw_control) * 0.020f;
+            pit_target -= static_cast<float>(1.0 * pit_control) * 0.012f;
+            pit_target = std::clamp(pit_target, -10.f, 25.f); //限幅
+            yaw.update(yaw_target);
+            pit.update(pit_target);
 
-        yaw_target -= static_cast <float> (1.0*yaw_control) * 0.020f;
-        pit_target -= static_cast <float> (1.0*pit_control) * 0.012f;
-        pit_target = std::clamp(pit_target,-10.f,25.f);//限幅
-        yaw.update(yaw_target);
-        pit.update(pit_target);
-
-        app_msg_vofa_send(E_UART_DEBUG, {
-                                            Bullet_supply.current,
-                                            Bullet_supply.angle
-                                        });
-        //开启摩擦轮
-        if(press_key_.key.f ) {
-            shoot_flag ^= 1;
+            //        app_msg_vofa_send(E_UART_DEBUG, {
+            //                                            Bullet_supply.current,
+            //                                            Bullet_supply.angle,
+            //                                            referee->remote_control.mouse_x*1.0
+            //                                        });
+            //开启摩擦轮
+            if(press_key_.key.f) {
+                shoot_flag ^= 1;
+            }
+            shoot_left.update(6000 * shoot_flag);
+            shoot_right.update(-6000 * shoot_flag);
+            Bullet_supply.update(-19*shoot_speed+return_speed);
         }
-        shoot_left.update(6000*shoot_flag);
-        shoot_right.update(-6000*shoot_flag);
-        Bullet_supply.update(-19*shoot_speed);
-        OS::Task::SleepMilliseconds(10);
         //堵转保护
         if(bsp_time_get_ms() - Bullet_supply.device()->last_online_time > 100 && Bullet_supply.current>10000){
             Bullet_supply.relax();
         }
         if(bsp_time_get_ms() - shoot_left.device()->last_online_time > 100 && shoot_left.current>10000){
             shoot_left.relax();shoot_right.relax();
+            Bullet_supply.relax();
         }
-        Bullet_supply.relax();
+//        Bullet_supply.relax();
+        OS::Task::SleepMilliseconds(10);
     }
+
 }
 
 void app_gimbal_init() {

@@ -26,7 +26,9 @@ void app_referee_init() {
     bsp_uart_set_callback(E_UART_REFEREE, callback);
     ui.Create(ui_task, static_cast<void *>(nullptr), "ui", 512, OS::Task::MEDIUM);
 }
-
+void app_pic_control_init(){
+    bsp_uart_set_callback(E_UART_REFEREE_PIC,callback);
+}
 /* Receive */
 
 void solver(uint8_t *s) {
