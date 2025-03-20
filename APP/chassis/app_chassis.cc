@@ -128,11 +128,9 @@ void app_chassis_task(void *args) {
                 memcpy(&key_c.key, &referee->remote_control.keyboard, sizeof(key_c.key));
             }
 
-                vmax = 1000.f + 300.f * referee->robot_status.robot_level;
+                vmax = 3000.f + 300.f * referee->robot_status.robot_level;
                 vx   = vx == vmax ? vmax : vx + 1.0 * key_c.key.d * 500.f - 1.0 * key_c.key.a * 500.f;
                 vy   = vy == vmax ? vmax : vy + 1.0 * key_c.key.w * 500.f - 1.0 * key_c.key.s * 500.f;
-                vx   = 1.0 * key_c.key.d * 900 - 1.0 * key_c.key.a * 900;
-                vy   = 1.0 * key_c.key.w * 900 - 1.0 * key_c.key.s * 900;
 
             if(press_key.key.ctrl){follow_state^=1;}
             //小陀螺模式

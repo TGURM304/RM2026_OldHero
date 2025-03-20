@@ -21,7 +21,7 @@
 #include "ctrl_forward_feed.h"
 #ifdef COMPILE_GIMBAL
 
-//@Todo：拨弹轮优化 图传电路键盘 功率控制
+//@Todo： 功率控制
 using namespace Motor;
 using namespace Controller;
 
@@ -99,7 +99,7 @@ void app_gimbal_task(void *args) {
         //按键状态检测
         lst_keyboard_ = now_keyboard_, now_keyboard_ = key_g, press_key_.raw = (now_keyboard_.raw ^ lst_keyboard_.raw) & now_keyboard_.raw;
         //遥控器/图传 离线检测
-        if(bsp_time_get_ms() - rc->time_stamp > 100 ) {
+        if(bsp_time_get_ms() - rc->time_stamp > 100||bsp_time_get_ms() - referee->timestamp>100 ) {
             pit.clear();
             pit.update(0);
             yaw.clear();
