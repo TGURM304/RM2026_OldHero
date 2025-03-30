@@ -16,6 +16,7 @@
 
 #include "app_ins.h"
 #include "app_motor.h"
+#include "alg_filter.h"
 #include "app_msg.h"
 #include "app_sys.h"
 #include "bsp_rc.h"
@@ -29,6 +30,8 @@
 #include "app_referee_ui.h"
 #include "bsp_rng.h"
 #ifdef COMPILE_CHASSIS
+using namespace Motor;
+using namespace Algorithm;
 //@Todo： 完善UI
 //@Todo: 旋转功率策略 图传键盘
 /*
@@ -54,9 +57,7 @@
  *  v_RU = -rotate * sqrt(2) + vy - vx * sqrt(2)
  *  v_RD = -rotate * sqrt(2) + vy - vx * sqrt(2)
  */
-// MotorController RD(std::make_unique <Motor::DJIMotor> (
-//     "RD", Motor::DJIMotor::GM6020, (Motor::DJIMotor::Param) { 0x03, E_CAN2, Motor::DJIMotor::CURRENT }
-//     ));
+
 MotorController LU(std::make_unique <Motor::DJIMotor> (
     "chassis_left_up",
     Motor::DJIMotor::M3508,
@@ -79,9 +80,10 @@ MotorController RD(std::make_unique <Motor::DJIMotor> (
     ));
 
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
-double vx = 0, vy = 0,vmax=0;
+double vx = 0, vy = 0, v_basic =0,vmax=0;
 // 旋转速度
 double rotate = 0,rotate_1 = 0,rotate_2 = 0;
+
 bool status = 1,follow_state = 0;
 uint8_t cap_count = 0,ui_count = 0;
 const auto rc = bsp_rc_data();
@@ -89,6 +91,7 @@ const auto ins = app_ins_data();
 const auto referee = app_referee_data();
 
 constexpr int16_t yaw_zero_position = 9124;
+LowPassFilter vx_filter(20), vy_filter(20), rotate_filter(20);
 
 bsp_rc_keyboard_u lst_keyboard,now_keyboard,press_key,key_c;
 app_ui_data_t referee_ui;app_ui_dot_t referee_ui_;
@@ -127,16 +130,18 @@ void app_chassis_task(void *args) {
             else {
                 memcpy(&key_c.key, &referee->remote_control.keyboard, sizeof(key_c.key));
             }
-
-                vmax = 3000.f + 300.f * referee->robot_status.robot_level;
-                vx   = vx == vmax ? vmax : vx + 1.0 * key_c.key.d * 500.f - 1.0 * key_c.key.a * 500.f;
-                vy   = vy == vmax ? vmax : vy + 1.0 * key_c.key.w * 500.f - 1.0 * key_c.key.s * 500.f;
-
+            vmax = 2000+referee->robot_status.robot_level*800;
+            v_basic = 1000.f + referee->robot_status.robot_level*400;
+                vx = 1.0 * key_c.key.d * v_basic - 1.0 * key_c.key.a *v_basic;
+                vy = 1.0 * key_c.key.w * v_basic - 1.0 * key_c.key.s *v_basic;
+                vx = std::clamp(vx,-vmax, vmax);
+                vy = std::clamp(vy,-vmax, vmax);
+                vx = vx_filter.update(vx, 0.001), vy = vy_filter.update(vy, 0.001);
             if(press_key.key.ctrl){follow_state^=1;}
             //小陀螺模式
             if(press_key.key.v){
 
-                rotate_2 = rotate_2 >= (vmax+1000.f) ? 0 : rotate_2 + 1000;
+                rotate_2 = rotate_2 >= (v_basic +1000.f) ? 0 : rotate_2 + 1000;
                 follow_state = 0;
             }
             //底盘跟随云台
@@ -149,6 +154,7 @@ void app_chassis_task(void *args) {
 //            }
             rotate_1 = 1.0 * key_c.key.q * 1000 - 1.0 * key_c.key.e * 1000;
             rotate = rotate_1+rotate_2;
+            rotate = rotate_filter.update(rotate, 0.001);
         }
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
@@ -174,7 +180,7 @@ void app_chassis_task(void *args) {
             ui_count = 50;
             // referee_ui.ui_pit = 0.01f*bsp_rng_random(0,100)*bsp_rng_random(-40,40);
             referee_ui.ui_pit = ins->roll;
-            referee_ui.s_sum  = (int16_t)bsp_rng_random(0, 200);
+//            referee_ui.s_sum  = read_trigger_angle()/60;
             referee_ui.En     = CAP::data()->cap_percent;
             referee_ui.cis = ((yaw_zero_position - static_cast<int16_t>(read_yaw_angle()) + 8192) % 8192) * 360 / 8192;
 
@@ -183,6 +189,7 @@ void app_chassis_task(void *args) {
             ui_reset(referee_ui_.ui_rst);
             if(referee->robot_status.current_HP == 0 )status = 1 ;
             referee_ui_.ui_die = status;
+//            referee_ui_.ui_shoot =
             app_ui_dot_update(&referee_ui, &referee_ui_);
             app_ui_task(&referee_ui);
         }

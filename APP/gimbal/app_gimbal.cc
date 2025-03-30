@@ -21,9 +21,11 @@
 #include "ctrl_forward_feed.h"
 #ifdef COMPILE_GIMBAL
 
-//@Todo： 功率控制
+//@Todo：将云台传出的所有数据都整合为一个结构体 并使用结构体指针访问
 using namespace Motor;
 using namespace Controller;
+
+
 
 /* Yaw & Pitch */
 MotorController yaw(std::make_unique <DJIMotor> (
@@ -50,6 +52,16 @@ MotorController Bullet_supply(std::make_unique <Motor::DJIMotor> (
 float read_yaw_angle(){
     return yaw.angle;
 }
+float read_trigger_angle(){
+    float trigger_sum_angle = 0;
+       trigger_sum_angle +=  Bullet_supply.angle;
+    return trigger_sum_angle;
+}
+bool return_shoot_status(){
+    bool status =0;
+    if(shoot_left.speed!=0)status=1;
+    return status;
+};
 float map_angle(){
     const int ANGLE_ZERO =858;
     const int ANGLE_MAX = 9050;
@@ -62,7 +74,7 @@ float map_angle(){
     if(abs((int)angle_)>90)angle_ = angle_>0?angle_-180.0f:angle_+180.0f;//优劣弧
 
     return angle_;
-};
+}
 static float calc_delta(float full, float current, float target) {
     float dt = target - current;
     if(2 * dt >  full) dt -= full;
@@ -99,19 +111,20 @@ void app_gimbal_task(void *args) {
         //按键状态检测
         lst_keyboard_ = now_keyboard_, now_keyboard_ = key_g, press_key_.raw = (now_keyboard_.raw ^ lst_keyboard_.raw) & now_keyboard_.raw;
         //遥控器/图传 离线检测
-        if(bsp_time_get_ms() - rc->time_stamp > 100||bsp_time_get_ms() - referee->timestamp>100 ) {
-            pit.clear();
-            pit.update(0);
-            yaw.clear();
-            yaw.update(yaw_target);
-            shoot_flag = shoot_speed = 0;
-            OS::Task::SleepMilliseconds(1);
-            continue;
-        }
+//        if(bsp_time_get_ms() - rc->time_stamp > 100 and bsp_time_get_ms() - referee->timestamp>100 ) {
+//            pit.clear();
+//            pit.update(0);
+//            yaw.clear();
+//            yaw.update(yaw_target);
+//            shoot_flag = shoot_speed = 0;
+//            OS::Task::SleepMilliseconds(1);
+//            continue;
+//        }
 
         if(rc->s_r==RC_CONTROL){
-            yaw_target -= (rc->rc_r[0] * 0.01f);
-            pit_target -= (rc->rc_r[1] * 0.02f);
+            yaw_target -= static_cast<float>(1.0*rc->rc_r[0] * 0.001f);
+            pit_target -= static_cast<float>(1.0*rc->rc_r[1] * 0.0012f);
+            pit_target = std::clamp(pit_target, -10.f, 25.f); //限幅
             if(rc->s_l==-1){
             shoot_left.update(6000);shoot_right.update(-6000);
             Bullet_supply.update(-19*60*10);
@@ -120,6 +133,8 @@ void app_gimbal_task(void *args) {
                 shoot_left.update(0);shoot_right.update(0);
                 Bullet_supply.update(0);
             }
+            yaw.update(yaw_target);pit.update(pit_target);
+
         }
         //使用键盘控制
         else {
@@ -136,7 +151,7 @@ void app_gimbal_task(void *args) {
                 if(pres_l) shoot_speed += 60;
                 if(pres_r) return_speed += 1000;
                 //图传电路
-            } else {
+            } else if(rc->s_r == PICTRANS_CONTROL) {
                 memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
                 lst_        = now_;
                 now_        = referee->remote_control.mouse_l;
@@ -177,7 +192,7 @@ void app_gimbal_task(void *args) {
             shoot_left.relax();shoot_right.relax();
             Bullet_supply.relax();
         }
-//        Bullet_supply.relax();
+//        Bullet_supply.relax();shoot_left.relax();shoot_right.relax();
         OS::Task::SleepMilliseconds(10);
     }
 

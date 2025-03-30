@@ -16,6 +16,8 @@ extern "C" {
  */
 void app_gimbal_init();
 float read_yaw_angle();
+float read_trigger_angle();
+bool return_shoot_status();
 float map_angle();
 /*!
  * 云台任务
