@@ -32,7 +32,6 @@
 #ifdef COMPILE_CHASSIS
 using namespace Motor;
 using namespace Algorithm;
-//@Todo： 完善UI
 //@Todo: 旋转功率策略 图传键盘
 /*
  *  适用于麦克纳姆轮（民航英雄）
@@ -90,7 +89,7 @@ const auto rc = bsp_rc_data();
 const auto ins = app_ins_data();
 const auto referee = app_referee_data();
 
-constexpr int16_t yaw_zero_position = 9124;
+constexpr int16_t yaw_zero_position = 4096;
 LowPassFilter vx_filter(20), vy_filter(20), rotate_filter(20);
 
 bsp_rc_keyboard_u lst_keyboard,now_keyboard,press_key,key_c;
@@ -117,8 +116,7 @@ void app_chassis_task(void *args) {
 
         if(rc->s_r==RC_CONTROL) {
             vx = 1.0 * rc->rc_l[0] * 3, vy = 1.0 * rc->rc_l[1] * 3;
-            if(rc->s_l==1)rotate=3000;
-            if(rc->s_l==0)rotate=0;
+            rotate = 5*rc->reserved;
 
         }
         //使用键盘控制
@@ -156,16 +154,23 @@ void app_chassis_task(void *args) {
             rotate = rotate_1+rotate_2;
             rotate = rotate_filter.update(rotate, 0.001);
         }
+
         auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
         theta -= ((yaw_zero_position - static_cast <int16_t> (read_yaw_angle()) + 8192) % 8192) * M_PI / 4096;
+//        theta -= (4096 - static_cast <int16_t>(read_yaw_angle()))
         vx = r * std::cos(theta);
         vy = r * std::sin(theta);
-
+        app_msg_vofa_send(E_UART_REFEREE_PIC, {
+                                                  yaw_zero_position * 1.0 ,
+                                                  read_yaw_angle(),
+                                                  ins->yaw,
+                                                  theta
+                                              });
 
         LU.update(rotate + vy * M_SQRT2 + vx * M_SQRT2) ;
+        RU.update(rotate - vy * M_SQRT2 + vx * M_SQRT2) ;
         RD.update(rotate - vy * M_SQRT2 - vx * M_SQRT2) ;
         LD.update(rotate + vy * M_SQRT2 - vx * M_SQRT2) ;
-        RU.update(rotate - vy * M_SQRT2 + vx * M_SQRT2) ;
 
         //超级电容
         if(++cap_count == 50) {

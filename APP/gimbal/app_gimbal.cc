@@ -120,21 +120,26 @@ void app_gimbal_task(void *args) {
 //            OS::Task::SleepMilliseconds(1);
 //            continue;
 //        }
-
+        //遥控器控制
         if(rc->s_r==RC_CONTROL){
             yaw_target -= static_cast<float>(1.0*rc->rc_r[0] * 0.001f);
-            pit_target -= static_cast<float>(1.0*rc->rc_r[1] * 0.0012f);
+            pit_target += static_cast<float>(1.0*rc->rc_r[1] * 0.0012f);
             pit_target = std::clamp(pit_target, -10.f, 25.f); //限幅
+
             if(rc->s_l==-1){
-            shoot_left.update(6000);shoot_right.update(-6000);
-            Bullet_supply.update(-19*60*10);
-            }
-            if(rc->s_l==0){
                 shoot_left.update(0);shoot_right.update(0);
-                Bullet_supply.update(0);
+                shoot_speed +=0;
+
+            }
+            else{
+            shoot_left.update(6000);shoot_right.update(-6000);
+            lst_        = now_;
+            now_        = rc->s_l;
+            pres_l      = (now_ ^ lst_) & now_;
+            if(pres_l) shoot_speed += 60;
             }
             yaw.update(yaw_target);pit.update(pit_target);
-
+            Bullet_supply.update(-19*shoot_speed);
         }
         //使用键盘控制
         else {
@@ -170,12 +175,6 @@ void app_gimbal_task(void *args) {
             pit_target = std::clamp(pit_target, -10.f, 25.f); //限幅
             yaw.update(yaw_target);
             pit.update(pit_target);
-
-            //        app_msg_vofa_send(E_UART_DEBUG, {
-            //                                            Bullet_supply.current,
-            //                                            Bullet_supply.angle,
-            //                                            referee->remote_control.mouse_x*1.0
-            //                                        });
             //开启摩擦轮
             if(press_key_.key.f) {
                 shoot_flag ^= 1;
@@ -185,14 +184,14 @@ void app_gimbal_task(void *args) {
             Bullet_supply.update(-19*shoot_speed+return_speed);
         }
         //堵转保护
-        if(bsp_time_get_ms() - Bullet_supply.device()->last_online_time > 100 && Bullet_supply.current>10000){
-            Bullet_supply.relax();
-        }
-        if(bsp_time_get_ms() - shoot_left.device()->last_online_time > 100 && shoot_left.current>10000){
-            shoot_left.relax();shoot_right.relax();
-            Bullet_supply.relax();
-        }
-//        Bullet_supply.relax();shoot_left.relax();shoot_right.relax();
+//        if(bsp_time_get_ms() - Bullet_supply.device()->last_online_time > 100 && Bullet_supply.current>10000){
+//            Bullet_supply.relax();
+//        }
+//        if(bsp_time_get_ms() - shoot_left.device()->last_online_time > 100 && shoot_left.current>10000){
+//            shoot_left.relax();shoot_right.relax();
+//            Bullet_supply.relax();
+//        }
+//        shoot_left.relax();shoot_right.relax();
         OS::Task::SleepMilliseconds(10);
     }
 
@@ -212,7 +211,6 @@ void app_gimbal_init() {
         [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
         std::make_unique <PID> (95, 2.5, 0.0, 25000, 20000)
     );
-
     /*Pit PID 先为位置环后为速度环*/
     pit.add_controller(
         [](const auto x) -> double { return ins->roll; },
@@ -247,6 +245,7 @@ void app_gimbal_init() {
         std::make_unique <LowPassFilter> (150, 0.001)
     );
 }
+
 //    pit.relax();
 //        yaw.relax();
 
