@@ -25,6 +25,7 @@ public:
 	void relax(bool force = true);
 	void activate(bool force = true);
 	void update(double target);
+    void send_output(float out);
 	void add_controller(std::unique_ptr <Controller::Base> controller);
 	void add_controller(const std::function <float(const MotorController *)>& fn, std::unique_ptr <Controller::Base> controller);
 

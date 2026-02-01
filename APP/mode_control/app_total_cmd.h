@@ -2,8 +2,8 @@
 // Created by 郭巴 on 2026/1/30.
 //
 
-#ifndef RM_FRAMEWORK_F407_APP_MODE_CONTROL_H
-#define RM_FRAMEWORK_F407_APP_MODE_CONTROL_H
+#ifndef RM_FRAMEWORK_F407_APP_TOTAL_CMD_H
+#define RM_FRAMEWORK_F407_APP_TOTAL_CMD_H
 #include "bsp_rc.h"
 
 enum class chassis_state{
@@ -12,6 +12,7 @@ enum class chassis_state{
     TOP_SPEED1,   //tips：小陀螺模式
     TOP_SPEED2
 };
+//开火状态机 现在测得拨弹盘正常拨一发弹丸的电流约5800-6200 杜撰电流基本稳定10000左右
 enum class shoot_state {
     SHOOT_ON,
     SHOOT_OFF
@@ -25,7 +26,6 @@ enum class input_source{
     RC_KEYBOARD,
     REFEREE_KEYBOARD
 };
-
 
 class Mode_control{
 public:
@@ -57,4 +57,7 @@ private:
     void chassis_update();
     void keyboard_update();
 };
-#endif //RM_FRAMEWORK_F407_APP_MODE_CONTROL_H
+
+extern Mode_control ctrl;
+
+#endif //RM_FRAMEWORK_F407_APP_TOTAL_CMD_H

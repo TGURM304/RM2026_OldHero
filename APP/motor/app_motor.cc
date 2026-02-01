@@ -60,7 +60,7 @@ void MotorController::update(double target) {
 
     if(use_stall_detect) {
         if(error_code & APP_MOTOR_ERROR_STALL) {
-            if(std::abs(motor_->status.current < 1000)) {
+            if(std::abs(motor_->status.current )< 1000) {
                 if(++err_stall_count_ == 5 * stall_detector_time_threshold) {
                     activate(false), error_code ^= APP_MOTOR_ERROR_STALL;
                     err_stall_count_ = 0;
@@ -111,7 +111,12 @@ void MotorController::update(double target) {
 
     motor_->update(output = result);
 }
-
+void MotorController::send_output(float out) {
+    // 保持与 update() 一致的安全策略：错误或放松状态下不发送
+    if(relaxed_ || error_code) return;
+    output = out;
+    motor_->update(out);
+}
 void MotorController::add_controller(std::unique_ptr<Controller::Base> controller) {
     pipeline_.emplace_back(nullptr, std::move(controller));
 }
