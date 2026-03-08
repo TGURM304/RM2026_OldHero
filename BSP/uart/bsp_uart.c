@@ -18,6 +18,20 @@ void bsp_uart_init(bsp_uart_e e, UART_HandleTypeDef *h) {
     if(e != E_UART_CDC) handle[e] = h;
 }
 
+// 不要在 set_callback 后执行 set_baudrate, 否则可能会破坏空闲中断状态
+void bsp_uart_set_baudrate(bsp_uart_e device, uint32_t baudrate) {
+    BSP_ASSERT(0 <= device && device < 6 && baudrate > 0 && callback[device] == NULL);
+    HAL_UART_StateTypeDef state = HAL_UART_GetState(handle[device]);
+    while (state == HAL_UART_STATE_BUSY_TX || state == HAL_UART_STATE_BUSY_RX || state == HAL_UART_STATE_BUSY_TX_RX) {
+        state = HAL_UART_GetState(handle[device]);
+        osDelay(1);
+    }
+
+    HAL_UART_DeInit(handle[device]);
+    handle[device]->Init.BaudRate = baudrate;
+    HAL_UART_Init(handle[device]);
+}
+
 void bsp_uart_set_callback(bsp_uart_e e, void (*f)(bsp_uart_e e, uint8_t *s, uint16_t l)) {
     BSP_ASSERT(callback[e] == NULL);
     BSP_ASSERT(e == E_UART_CDC || handle[e]);
@@ -38,6 +52,7 @@ void bsp_uart_send(bsp_uart_e e, uint8_t *s, uint16_t l) {
         HAL_UART_Transmit(handle[e], s, l, HAL_MAX_DELAY);
     }
 }
+
 
 void bsp_uart_printf(bsp_uart_e e, const char *fmt, ...) {
     va_list ap;

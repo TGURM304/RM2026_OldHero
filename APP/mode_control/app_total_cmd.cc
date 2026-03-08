@@ -7,19 +7,18 @@
 #include <cmath>
 #include "app_total_cmd.h"
 #include "bsp_rc.h"
-#include "app_referee.h"
 #include "app_chassis.h"
 #include "app_gimbal.h"
 #include "bsp_time.h"
+#include "robomaster.h"
 const auto rc = bsp_rc_data();
-const auto referee = app_referee_data();
+auto referee = robomaster::image::rc::data();
 auto gimbal = app_gimbal_data();
 auto chassis = app_chassis_data();
 bsp_rc_keyboard_u lst_keyboard_,now_keyboard_,key_g;
 uint8_t lst = 0,now = 0 ,lst_ = 0,now_ = 0;
 uint8_t lst_s = 0,now_s = 0;
 Mode_control ctrl;
-//@TODO:在云台坐标系下的斜坡加速
 void Mode_control::update() {
     main_judge();
     source_judge();
@@ -51,7 +50,7 @@ void Mode_control::source_judge(){
 }
 void Mode_control::shoot_judge() {
     if(inputSource == input_source::RC_REMOTE){
-        if(rc->s_l == -1)//左拨杆拨到最下侧
+        if(rc->s_l == 0)//左拨杆拨到中间
             shootState = shoot_state::SHOOT_OFF;
         else shootState =   shoot_state::SHOOT_ON;
     }
@@ -105,26 +104,27 @@ void Mode_control::keyboard_update() {
         pres.mouse_y = rc->mouse_y;
         break;
     case input_source::REFEREE_KEYBOARD:
-        memcpy(&key_g.key, &referee->remote_control.keyboard, sizeof(key_g.key));
+        memcpy(&key_g.key, &referee->keyboard, sizeof(key_g.key));
         lst        = now;
-        now        = referee->remote_control.mouse_l;
+        now        = referee->mouse_l;
         pres.mouse_l      = (now ^ lst) & now;
         lst_         = now_;
-        now_         = referee->remote_control.mouse_r;
+        now_         = referee->mouse_r;
         pres.mouse_r      = (now_ ^ lst_) & now_;
-        pres.mouse_x = referee->remote_control.mouse_x;
-        pres.mouse_y = referee->remote_control.mouse_y;
+        pres.mouse_x = referee->mouse_x;
+        pres.mouse_y = referee->mouse_y;
         break;
     }
 }
 void Mode_control::chassis_update() {
     if(inputSource == input_source::RC_REMOTE){
-        chassis->cmd_vx = 1.0 * rc->rc_l[0] * 3, chassis->cmd_vy = 1.0 * rc->rc_l[1] * 3;
+        chassis->cmd_vx = 1.0 * rc->rc_l[0] * 5, chassis->cmd_vy = 1.0 * rc->rc_l[1] * 5;
         chassis->cmd_rotate = 5*rc->reserved;
     }
     else{
         //底盘速度的控制模型为匀加速直线运动 v = v0+at
         double input_x = 1.0*(key_g.key.d  - key_g.key.a),input_y = 1.0*(key_g.key.w  - key_g.key.s);
+
         chassis->v_basic = 400 ;//v_basic应该根据等级和功率实测
         chassis->dx += input_x * chassis->cmd_acc;
         chassis->cmd_vx = chassis->v_basic * input_x + chassis->dx;

@@ -12,7 +12,7 @@
 
 #define M_Too_Small_AllErrors 500.0
 // #define M_Enable_PowerCompensation
-#define M_Power_Compensation_Alpha 0.05
+#define M_Power_Compensation_Alpha 0.00
 #define M_Motor_ReservedPower_Border 54.0
 #define M_PerMotor_ReservedPower 8.0
 

@@ -9,7 +9,7 @@
 #include <cstring>
 #include <tuple>
 
-#include "alg_crc.h"
+#include "crc.h"
 #include "app_ins.h"
 #include "bsp_def.h"
 #include "bsp_time.h"
@@ -31,7 +31,7 @@ float x, y, z;
 
 void uart_rx_callback(bsp_uart_e e, uint8_t *s, uint16_t l) {
     if(l < sizeof rx_packet) return;
-    if(!CRC16::verify(s, l)) return;
+    if(!crc16::verify(s, l)) return;
     std::copy_n(s, sizeof rx_packet, reinterpret_cast <uint8_t *> (&rx_packet));
     if(std::abs(rx_packet.x) > 1e4 |
        std::abs(rx_packet.y) > 1e4 |
@@ -91,7 +91,7 @@ void vision::send(uint8_t detect_color, bool reset_tracker) {
         .checksum = 0
     };
 
-    CRC16::append(pkg);
+    crc16::append(pkg);
 
     bsp_uart_send(E_UART_VISION, reinterpret_cast <uint8_t *> (&pkg), sizeof pkg);
 }

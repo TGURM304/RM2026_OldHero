@@ -12,10 +12,11 @@ enum class chassis_state{
     TOP_SPEED1,   //tips：小陀螺模式
     TOP_SPEED2
 };
-//开火状态机 现在测得拨弹盘正常拨一发弹丸的电流约5800-6200 杜撰电流基本稳定10000左右
+//开火状态机 现在测得拨弹盘正常拨一发弹丸的电流约5800-6200 堵转电流基本稳定10000左右
 enum class shoot_state {
     SHOOT_ON,
-    SHOOT_OFF
+    SHOOT_OFF,
+    SHOOT_ERROR
 };
 enum class main_state {
     SAFE,

@@ -3,7 +3,6 @@
 //
 
 #include <cmath>
-#include <cstring>
 #include "app_gimbal.h"
 #include "app_sys.h"
 #include "sys_task.h"
@@ -14,10 +13,7 @@
 #include "bsp_rc.h"
 #include "app_ins.h"
 #include "bsp_uart.h"
-#include "app_msg.h"
 #include "ctrl_low_pass_filter.h"
-#include "bsp_time.h"
-#include "app_referee.h"
 #include "ctrl_forward_feed.h"
 #include "app_total_cmd.h"
 #ifdef COMPILE_GIMBAL
@@ -54,7 +50,6 @@ static float calc_delta(float full, float current, float target) {
     return dt;
 }
 const auto ins = app_ins_data();
-const auto referee = app_referee_data();
 
 static Gimbal_cmd_t gimbal;
 Gimbal_cmd_t *app_gimbal_data(){

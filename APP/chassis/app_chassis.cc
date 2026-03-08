@@ -21,10 +21,8 @@
 #include "app_gimbal.h"
 #include "dev_motor_dji.h"
 #include "ctrl_motor_base_pid.h"
-#include "app_referee.h"
 #include "dev_cap.h"
 #include "bsp_time.h"
-#include "app_referee_ui.h"
 
 #include "power_ctrl.h"
 #include "app_total_cmd.h"
@@ -32,7 +30,6 @@
 using namespace Motor;
 using namespace Algorithm;
 #define yaw_zero_pos 4096
-//@Todo: 旋转功率策略
 /*
  *  适用于麦克纳姆轮（民航英雄）
  *  实现了基础的旋转、平移
@@ -93,10 +90,8 @@ double rotate = 0;
 double motor_target[4] = {0};
 uint8_t cap_count = 0,ui_count = 0;
 const auto ins = app_ins_data();
-const auto referee = app_referee_data();
 
 LowPassFilter vx_filter(20), vy_filter(20), rotate_filter(20);
-app_ui_data_t referee_ui;app_ui_dot_t referee_ui_;
 static Chassis_cmd_t chassis;
 static float calc_delta(float full, float current, float target) {
     float dt = target - current;
@@ -122,6 +117,23 @@ void chassis_update_handle(){
     RD.update(motor_target[2]) ;
     LD.update(motor_target[3]) ;
 }
+
+void chassis_powerctrl_handle(){
+    chassis_.updateMotorError(0, motor_target[0] - static_cast<float>(LU.device()->speed));
+    chassis_.updateMotorError(1, motor_target[1] - static_cast<float>(RU.device()->speed));
+    chassis_.updateMotorError(2, motor_target[2] - static_cast<float>(RD.device()->speed));
+    chassis_.updateMotorError(3, motor_target[3] - static_cast<float>(LD.device()->speed));
+    chassis_.allocatePower(120);
+
+    m3508_1_power.limiter(&LU.output,LU.device()->speed,m3508_1_power.power_limit);
+    m3508_2_power.limiter(&RU.output,RU.device()->speed,m3508_2_power.power_limit);
+    m3508_3_power.limiter(&RD.output,RD.device()->speed,m3508_3_power.power_limit);
+    m3508_4_power.limiter(&LD.output,LD.device()->speed,m3508_4_power.power_limit);
+    LU.send_output(LU.output) ;
+    RU.send_output(RU.output) ;
+    RD.send_output(RD.output) ;
+    LD.send_output(LD.output) ;
+}
 Chassis_cmd_t *app_chassis_data(){
     return &chassis;
 }
@@ -131,59 +143,46 @@ void app_chassis_task(void *args) {
     while(!app_sys_ready())
         OS::Task::SleepMilliseconds(10);
 
-    app_ui_add_init();
     while(true) {
         chassis_update_handle();
+        chassis_powerctrl_handle();
         app_msg_vofa_send(E_UART_REFEREE_PIC, {
                                                   LU.output,
                                                   RU.output,
                                                   RD.output,
                                                   LD.output
                                               });
-        chassis_.updateMotorError(0, motor_target[0] - static_cast<float>(LU.device()->speed));
-        chassis_.updateMotorError(1, motor_target[1] - static_cast<float>(RU.device()->speed));
-        chassis_.updateMotorError(2, motor_target[2] - static_cast<float>(RD.device()->speed));
-        chassis_.updateMotorError(3, motor_target[3] - static_cast<float>(LD.device()->speed));
-        chassis_.allocatePower(10);
 
-        m3508_1_power.limiter(&LU.output,LU.device()->speed,m3508_1_power.power_limit);
-        m3508_2_power.limiter(&RU.output,RU.device()->speed,m3508_2_power.power_limit);
-        m3508_3_power.limiter(&RD.output,RD.device()->speed,m3508_3_power.power_limit);
-        m3508_4_power.limiter(&LD.output,LD.device()->speed,m3508_4_power.power_limit);
-        LU.send_output(LU.output) ;
-        RU.send_output(RU.output) ;
-        RD.send_output(RD.output) ;
-        LD.send_output(LD.output) ;
 
-        //超级电容
-        if(++cap_count == 50) {
-            if(bsp_time_get_ms() - referee->timestamp < 500)
-                CAP::send(referee->robot_status.chassis_power_limit);
-            else
-                CAP::send(70);
-            cap_count = 0;
-        }
+//        //超级电容
+//        if(++cap_count == 50) {
+//            if(bsp_time_get_ms() - referee->timestamp < 500)
+//                CAP::send(referee->robot_status.chassis_power_limit);
+//            else
+//                CAP::send(70);
+//            cap_count = 0;
+//        }
 
 
 
-        //UI界面
-        if(++ui_count >= 50) {
-            ui_count = 50;
-            // referee_ui.ui_pit = 0.01f*bsp_rng_random(0,100)*bsp_rng_random(-40,40);
-            referee_ui.ui_pit = ins->roll;
-//            referee_ui.s_sum  = read_trigger_angle()/60;
-            referee_ui.En     = CAP::data()->cap_percent;
-            referee_ui.cis = ((yaw_zero_pos - static_cast<int16_t>(app_gimbal_data()->yaw_angle) + 8192) % 8192) * 360 / 8192;
-
-            referee_ui_.rotate = chassis.cmd_rotate;
-//            if(key_c.key.b)referee_ui_.ui_rst ^=1;
-            ui_reset(referee_ui_.ui_rst);
-//            if(referee->robot_status.current_HP == 0 )status = 1 ;
-//            referee_ui_.ui_die = status;
-//            referee_ui_.ui_shoot =
-            app_ui_dot_update(&referee_ui, &referee_ui_);
-            app_ui_task(&referee_ui);
-        }
+//        //UI界面
+//        if(++ui_count >= 50) {
+//            ui_count = 50;
+//            // referee_ui.ui_pit = 0.01f*bsp_rng_random(0,100)*bsp_rng_random(-40,40);
+//            referee_ui.ui_pit = ins->roll;
+////            referee_ui.s_sum  = read_trigger_angle()/60;
+//            referee_ui.En     = CAP::data()->cap_percent;
+//            referee_ui.cis = ((yaw_zero_pos - static_cast<int16_t>(app_gimbal_data()->yaw_angle) + 8192) % 8192) * 360 / 8192;
+//
+//            referee_ui_.rotate = chassis.cmd_rotate;
+////            if(key_c.key.b)referee_ui_.ui_rst ^=1;
+//            ui_reset(referee_ui_.ui_rst);
+////            if(referee->robot_status.current_HP == 0 )status = 1 ;
+////            referee_ui_.ui_die = status;
+////            referee_ui_.ui_shoot =
+//            app_ui_dot_update(&referee_ui, &referee_ui_);
+//            app_ui_task(&referee_ui);
+//        }
         OS::Task::SleepMilliseconds(1);
     }
 }

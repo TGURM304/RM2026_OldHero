@@ -22,13 +22,11 @@
 #include <cstdio>
 
 #include "bsp_def.h"
-
+#include "robomaster.h"
 #include "app_msg.h"
 #include "app_sys_err.h"
 #include "app_terminal.h"
 #include "bsp_flash.h"
-#include "app_referee.h"
-
 #include <cstring>
 
 bool inited_ = false;
@@ -76,8 +74,8 @@ void app_sys_init() {
     app_gimbal_init();
 #endif
 #ifdef USE_REFEREE_SYSTEM
-    app_referee_init();
-    app_pic_control_init();
+    robomaster::basic::init(E_UART_REFEREE);
+    robomaster::image::init(E_UART_REFEREE_PIC);
 #endif
 
 #ifdef USE_FLASH_CHECK
