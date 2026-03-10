@@ -16,16 +16,18 @@
 #include "ctrl_low_pass_filter.h"
 #include "ctrl_forward_feed.h"
 #include "app_total_cmd.h"
+#include "app_msg.h"
+#include "app_second_order.h"
 #ifdef COMPILE_GIMBAL
 using namespace Motor;
 using namespace Controller;
 
 /* Yaw & Pitch */
 MotorController yaw(std::make_unique <DJIMotor> (
-    "yaw", DJIMotor::GM6020, (DJIMotor::Param) { 0x02, E_CAN1, DJIMotor::VOLTAGE }
+    "yaw", DJIMotor::GM6020, (DJIMotor::Param) { 0x02, E_CAN1, DJIMotor::CURRENT }
 ));
 MotorController pit(std::make_unique <DJIMotor> (
-    "pit", DJIMotor::GM6020, (DJIMotor::Param) { 0x01, E_CAN1, DJIMotor::VOLTAGE }
+    "pit", DJIMotor::GM6020, (DJIMotor::Param) { 0x01, E_CAN1, DJIMotor::CURRENT }
 ));
 MotorController shoot_left(std::make_unique <Motor::DJIMotor> (
     "shoot_left",
@@ -50,6 +52,9 @@ static float calc_delta(float full, float current, float target) {
     return dt;
 }
 const auto ins = app_ins_data();
+//二次轨迹规划
+PathReference::second_order yaw_path(1000,40,1);
+PathReference::second_order pit_path(1000,40,1);
 
 static Gimbal_cmd_t gimbal;
 Gimbal_cmd_t *app_gimbal_data(){
@@ -85,6 +90,8 @@ void motor_status_update_handle(){
     gimbal.trigger_current = trigger.current;
 }
 void gimbal_update_handle(){
+    gimbal.yaw_target = yaw_path.update(gimbal.yaw_target_raw);
+    gimbal.pit_target = pit_path.update(gimbal.pit_target_raw);
     yaw.update(gimbal.yaw_target);
     pit.update(gimbal.pit_target);
     trigger.update(gimbal.trigger_target);
@@ -94,20 +101,22 @@ void gimbal_update_handle(){
 void app_gimbal_task(void *args) {
     // Wait for system init.
     while(!app_sys_ready())
-
     OS::Task::SleepMilliseconds(500);
+
 
     while(true) {
         ctrl.update();
 
         if(ctrl.mainState == main_state::SAFE)gimbal_safe_handle();
 
-        if(ctrl.shootState == shoot_state::SHOOT_ON) shoot_on_handle(6000);
+        if(ctrl.shootState == shoot_state::SHOOT_ON) shoot_on_handle(10000);
         else if(ctrl.shootState == shoot_state::SHOOT_OFF)shoot_off_handle();
         motor_status_update_handle();
         gimbal_update_handle();
-
-
+        app_msg_vofa_send(E_UART_REFEREE_PIC, {
+                                                  pit.torque,
+                                                  pit.current
+                                              });
             OS::Task::SleepMilliseconds(1);
         }
     }
@@ -123,21 +132,22 @@ void app_gimbal_init() {
     /*Yaw PID 先为位置环后为速度环*/
     yaw.add_controller(
         [](const auto x) -> double { return yaw_sum_angle; },
-        std::make_unique <PID> (16, 0, 0, 720, 0)
+        std::make_unique <PID> (16, 0, 0.5, 720, 0)
     );
     yaw.add_controller(
         [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
         std::make_unique <PID> (95, 2.5, 0.0, 25000, 20000)
     );
+
     /*Pit PID 先为位置环后为速度环*/
     pit.add_controller(
         [](const auto x) -> double { return ins->roll; },
-        std::make_unique <PID> (14, 0, 0.0, 120, 0)
+        std::make_unique <PID> (7.0, 0, 0.0, 120, 0)
     );
 
     pit.add_controller(
     [](const auto x) -> double { return ins->raw.gyro[0]/ M_PI * 180; },
-    std::make_unique <PID> (120, 1.5, 0.0, 25000, 5000));
+    std::make_unique <PID> (90, 0.0, 0.0, 25000, 5000));
 
     shoot_left.add_controller(std::make_unique <Controller::MotorBasePID> (
         Controller::MotorBasePID::PID_SPEED,

@@ -12,6 +12,7 @@ extern "C" {
 #endif
  struct Gimbal_cmd_t{
     float yaw_target=0,pit_target=0;
+    float yaw_target_raw=0,pit_target_raw=0;
     bool shoot_flag = false;
     float trigger_target = 0;
     float yaw_angle,pit_angle;

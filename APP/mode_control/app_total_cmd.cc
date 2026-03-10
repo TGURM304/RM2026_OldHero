@@ -11,6 +11,7 @@
 #include "app_gimbal.h"
 #include "bsp_time.h"
 #include "robomaster.h"
+#include "app_second_order.h"
 const auto rc = bsp_rc_data();
 auto referee = robomaster::image::rc::data();
 auto gimbal = app_gimbal_data();
@@ -22,9 +23,8 @@ Mode_control ctrl;
 void Mode_control::update() {
     main_judge();
     source_judge();
-    source_judge();
-    chassis_judge();
-    keyboard_update();
+    keyboard_update();  // 先更新键盘状态
+    chassis_judge();    // 再判断底盘状态（使用最新的按键状态）
     chassis_update();
     gimbal_update();
     shoot_judge();
@@ -50,7 +50,7 @@ void Mode_control::source_judge(){
 }
 void Mode_control::shoot_judge() {
     if(inputSource == input_source::RC_REMOTE){
-        if(rc->s_l == 0)//左拨杆拨到中间
+        if(rc->s_l == -1 || mainState == main_state::SAFE)//左拨杆拨到中间
             shootState = shoot_state::SHOOT_OFF;
         else shootState =   shoot_state::SHOOT_ON;
     }
@@ -62,16 +62,23 @@ void Mode_control::shoot_judge() {
 }
 
 void Mode_control::chassis_judge() {
-    //只有在键鼠控制才涉及到底盘的状态切换
-    uint8_t count = 0;
-    if(pres.k.key.ctrl)count++;
-    if(count>=2)count = 0;
-    if(pres.k.key.shift)follow_state = !follow_state;
-    if(follow_state){
+    // 只有在键鼠控制才涉及到底盘的状态切换
+    // 使用 pres.k.key.ctrl 的上升沿检测（按下瞬间触发）
+    if(pres.k.key.ctrl) {
+        chassis_mode_count++;
+        if(chassis_mode_count > 2) chassis_mode_count = 0;
+    }
+    
+    // shift 键切换跟随状态（上升沿检测）
+    if(pres.k.key.shift) {
+        follow_state = !follow_state;
+    }
+    
+    if(follow_state) {
         chassisState = chassis_state::FOLLOW;
     }
     else {
-        switch(count) {
+        switch(chassis_mode_count) {
         case 0:
             chassisState = chassis_state::NORMAL;
             break;
@@ -82,6 +89,8 @@ void Mode_control::chassis_judge() {
             chassisState = chassis_state::TOP_SPEED2;
             break;
         default:
+            chassis_mode_count = 0;
+            chassisState = chassis_state::NORMAL;
             break;
         }
     }
@@ -144,21 +153,21 @@ void Mode_control::chassis_update() {
         }
         chassis->cmd_vy = std::clamp((float)chassis->cmd_vy,-1000.f,1000.f);
         chassis->cmd_rotate_1 = 1.0* key_g.key.q * 1000 - 1.0* key_g.key.e * 1000;
-        if(!key_g.key.q and !key_g.key.e){
-            chassis->cmd_rotate_1 *= 0.5;//指数衰减
-            if(abs((int)chassis->cmd_rotate_1) < 100)chassis->cmd_rotate_1 = 0;
-        }
-//        switch(chassisState) {
-//        case chassis_state::NORMAL:
-//            chassis->cmd_rotate_2 = 0;
-//            break;
-//        case chassis_state::TOP_SPEED1:
-//            chassis->cmd_rotate_2 = 1000;
-//            break;
-//        case chassis_state::TOP_SPEED2:
-//            chassis->cmd_rotate_2 = 2000;
-//            break;
-//        case chassis_state::FOLLOW:
+//        if(!key_g.key.q and !key_g.key.e){
+//            chassis->cmd_rotate_1 *= 0.5;//指数衰减
+//            if(abs((int)chassis->cmd_rotate_1) < 100)chassis->cmd_rotate_1 = 0;
+//        }
+        switch(chassisState) {
+        case chassis_state::NORMAL:
+            chassis->cmd_rotate_2 = 0;
+            break;
+        case chassis_state::TOP_SPEED1:
+            chassis->cmd_rotate_2 = 1000;
+            break;
+        case chassis_state::TOP_SPEED2:
+            chassis->cmd_rotate_2 = 2000;
+            break;
+        case chassis_state::FOLLOW:
 //            chassis->cmd_rotate_1 =  0;
 //            const int ANGLE_ZERO =858;
 //            const int ANGLE_MAX = 9050;
@@ -169,20 +178,23 @@ void Mode_control::chassis_update() {
 //            if(abs((int)angle_)<15||abs((int)angle_)>165||(abs((int)angle_)<95&&abs((int)angle_)>85))angle_=0;//四个死区 位于车身四周
 //            if(abs((int)angle_)>90)angle_ = angle_>0?angle_-180.0f:angle_+180.0f;//优劣弧
 //            chassis->cmd_rotate_2 = angle_ * angle_; //取相差角度的平方作为旋转速度输出
-//            break;
-//        }
+            break;
+        }
     }
 }
 void Mode_control::gimbal_update() {
+
     if(inputSource == input_source::RC_REMOTE){
-        gimbal->yaw_target -= static_cast<float>(1.0*rc->rc_r[0] * 0.001f);
-        gimbal->pit_target += static_cast<float>(1.0*rc->rc_r[1] * 0.0012f);
+        gimbal->yaw_target_raw -= static_cast<float>(1.0*rc->rc_r[0] * 0.001f);
+        gimbal->pit_target_raw += static_cast<float>(1.0*rc->rc_r[1] * 0.001f);
+        gimbal->pit_target_raw = std::clamp(gimbal->pit_target_raw, -15.f, 20.f); //限幅
     }
     else{
-        gimbal->yaw_target -= static_cast<float>(1.0 * pres.mouse_x) * 0.020f;
-        gimbal->pit_target -= static_cast<float>(1.0 * pres.mouse_y) * 0.012f;
+        gimbal->yaw_target_raw -= static_cast<float>(1.0 * pres.mouse_x) * 0.020f;
+        gimbal->pit_target_raw += static_cast<float>(1.0 * pres.mouse_y) * 0.05f;
+        gimbal->pit_target_raw = std::clamp(gimbal->pit_target_raw, -15.f, 20.f); //限幅
     }
-    gimbal->pit_target = std::clamp(gimbal->pit_target, -10.f, 25.f); //限幅
+
 }
 
 void Mode_control::shoot_update() {
