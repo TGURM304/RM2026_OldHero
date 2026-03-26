@@ -79,6 +79,7 @@ void gimbal_safe_handle(){
     yaw.update(ins->yaw);
     pit.update(ins->roll);
     shoot_off_handle();
+    yaw.clear(),pit.clear();
 }
 void motor_status_update_handle(){
     yaw_sum_angle += calc_delta(360, yaw_lst_angle, ins->yaw);
@@ -132,7 +133,7 @@ void app_gimbal_init() {
     /*Yaw PID 先为位置环后为速度环*/
     yaw.add_controller(
         [](const auto x) -> double { return yaw_sum_angle; },
-        std::make_unique <PID> (16, 0, 0.5, 720, 0)
+        std::make_unique <PID> (16, 0, 0.7, 720, 0)
     );
     yaw.add_controller(
         [](const auto x) -> double { return ins->raw.gyro[2] / M_PI * 180; },
@@ -147,7 +148,7 @@ void app_gimbal_init() {
 
     pit.add_controller(
     [](const auto x) -> double { return ins->raw.gyro[0]/ M_PI * 180; },
-    std::make_unique <PID> (90, 0.0, 0.0, 25000, 5000));
+    std::make_unique <PID> (90, 0.5, 0.0, 25000, 5000));
 
     shoot_left.add_controller(std::make_unique <Controller::MotorBasePID> (
         Controller::MotorBasePID::PID_SPEED,

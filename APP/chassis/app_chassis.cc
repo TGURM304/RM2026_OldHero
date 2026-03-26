@@ -23,13 +23,12 @@
 #include "ctrl_motor_base_pid.h"
 #include "dev_cap.h"
 #include "bsp_time.h"
-
 #include "power_ctrl.h"
 #include "app_total_cmd.h"
 #ifdef COMPILE_CHASSIS
 using namespace Motor;
 using namespace Algorithm;
-#define yaw_zero_pos 4096
+#define yaw_zero_pos 3652
 /*
  *  适用于麦克纳姆轮（民航英雄）
  *  实现了基础的旋转、平移
@@ -101,7 +100,7 @@ static float calc_delta(float full, float current, float target) {
 }
 void chassis_update_handle(){
     vx = chassis.cmd_vx,vy = chassis.cmd_vy;
-    rotate = chassis.cmd_rotate;
+    rotate = chassis.cmd_rotate_1 + chassis.cmd_rotate_2;
     auto theta = std::atan2(vy, vx), r = std::sqrt((vx * vx) + (vy * vy));
     theta -= ((yaw_zero_pos - static_cast <int16_t> (app_gimbal_data()->yaw_angle) + 8192) % 8192) * M_PI / 4096;
     //        theta -= (4096 - static_cast <int16_t>(read_yaw_angle()))
@@ -146,17 +145,10 @@ void app_chassis_task(void *args) {
     while(true) {
         chassis_update_handle();
         chassis_powerctrl_handle();
-        app_msg_vofa_send(E_UART_REFEREE_PIC, {
-                                                  LU.output,
-                                                  RU.output,
-                                                  RD.output,
-                                                  LD.output
-                                              });
-
 
 //        //超级电容
 //        if(++cap_count == 50) {
-//            if(bsp_time_get_ms() - referee->timestamp < 500)
+//            if(bsp_time_get_ms() - ->timestamp < 500)
 //                CAP::send(referee->robot_status.chassis_power_limit);
 //            else
 //                CAP::send(70);

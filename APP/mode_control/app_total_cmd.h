@@ -45,7 +45,7 @@ private:
     bool follow_state = false;
 
     bool referee_online = false;
-    uint8_t chassis_mode_count = 0;  // 底盘模式切换计数器
+    uint8_t chassis_mode_cnt = 0;  // 底盘模式切换计数器
 
     //状态判断层
     void source_judge();
