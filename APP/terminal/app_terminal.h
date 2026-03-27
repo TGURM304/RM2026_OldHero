@@ -7,7 +7,7 @@
 #include <functional>
 #include <string>
 
-#define TERMINAL_PORT E_UART_DEBUG
+#include "app_conf.h"
 
 #define ANSI_CSI(code) "\033[" #code "m" /* ANSI CSI指令 */
 #define ANSI_BOLD_ON      "\x1b[1m"

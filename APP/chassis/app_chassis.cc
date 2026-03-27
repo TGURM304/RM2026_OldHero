@@ -25,9 +25,11 @@
 #include "bsp_time.h"
 #include "power_ctrl.h"
 #include "app_total_cmd.h"
+#include "robomaster.h"
 #ifdef COMPILE_CHASSIS
 using namespace Motor;
 using namespace Algorithm;
+using namespace robomaster;
 #define yaw_zero_pos 3652
 /*
  *  适用于麦克纳姆轮（民航英雄）
@@ -146,35 +148,17 @@ void app_chassis_task(void *args) {
         chassis_update_handle();
         chassis_powerctrl_handle();
 
-//        //超级电容
-//        if(++cap_count == 50) {
-//            if(bsp_time_get_ms() - ->timestamp < 500)
-//                CAP::send(referee->robot_status.chassis_power_limit);
-//            else
-//                CAP::send(70);
-//            cap_count = 0;
-//        }
+        // basic::ui::add_int("11",0,5,100,100,100,50,100);
+        robomaster::basic::ui::add_int("a", 0, 0, 5, 700, 200, 30, 114514);
+        robomaster::basic::ui::add_int("b", 0, 1, 5, 700, 400, 30, 114514);
+        robomaster::basic::ui::add_int("c", 0, 2, 5, 700, 600, 30, 114514);
+        robomaster::basic::ui::add_int("d", 0, 3, 5, 700, 800, 30, 114514);
+        robomaster::basic::ui::add_int("e", 0, 4, 5, 1000, 200, 30, 114514);
+        robomaster::basic::ui::add_int("f", 0, 5, 5, 1000, 400, 30, 114514);
+        robomaster::basic::ui::add_int("g", 0, 6, 5, 1000, 600, 30, 114514);
 
 
 
-//        //UI界面
-//        if(++ui_count >= 50) {
-//            ui_count = 50;
-//            // referee_ui.ui_pit = 0.01f*bsp_rng_random(0,100)*bsp_rng_random(-40,40);
-//            referee_ui.ui_pit = ins->roll;
-////            referee_ui.s_sum  = read_trigger_angle()/60;
-//            referee_ui.En     = CAP::data()->cap_percent;
-//            referee_ui.cis = ((yaw_zero_pos - static_cast<int16_t>(app_gimbal_data()->yaw_angle) + 8192) % 8192) * 360 / 8192;
-//
-//            referee_ui_.rotate = chassis.cmd_rotate;
-////            if(key_c.key.b)referee_ui_.ui_rst ^=1;
-//            ui_reset(referee_ui_.ui_rst);
-////            if(referee->robot_status.current_HP == 0 )status = 1 ;
-////            referee_ui_.ui_die = status;
-////            referee_ui_.ui_shoot =
-//            app_ui_dot_update(&referee_ui, &referee_ui_);
-//            app_ui_task(&referee_ui);
-//        }
         OS::Task::SleepMilliseconds(1);
     }
 }
@@ -203,7 +187,7 @@ RD.add_controller(std::make_unique <Controller::MotorBasePID> (
     nullptr
     ));
 
-LU.init(); LD.init(); RU.init(); RD.init();
+// LU.init(); LD.init(); RU.init(); RD.init();
 //     LU.relax(); LD.relax();  RD.relax();RU.relax();
 }
 

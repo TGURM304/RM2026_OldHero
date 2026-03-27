@@ -114,19 +114,15 @@ void app_gimbal_task(void *args) {
         else if(ctrl.shootState == shoot_state::SHOOT_OFF)shoot_off_handle();
         motor_status_update_handle();
         gimbal_update_handle();
-        app_msg_vofa_send(E_UART_REFEREE_PIC, {
-                                                  pit.torque,
-                                                  pit.current
-                                              });
             OS::Task::SleepMilliseconds(1);
         }
     }
 
 
 void app_gimbal_init() {
-    yaw.init(); pit.init();
-    shoot_left.init();shoot_right.init();
-    trigger.init();
+    // yaw.init(); pit.init();
+    // shoot_left.init();shoot_right.init();
+    // trigger.init();
     trigger.use_extend_angle = true;trigger.use_degree_angle = true;
     trigger.use_stall_detect = true;
 //    shoot_left.relax();shoot_right.relax();

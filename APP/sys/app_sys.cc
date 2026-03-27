@@ -74,8 +74,8 @@ void app_sys_init() {
     app_gimbal_init();
 #endif
 #ifdef USE_REFEREE_SYSTEM
-    robomaster::basic::init(E_UART_REFEREE);
-    robomaster::image::init(E_UART_REFEREE_PIC);
+    robomaster::basic::init(E_UART_6);
+    robomaster::image::init(E_UART_1);
 #endif
 
 #ifdef USE_FLASH_CHECK
