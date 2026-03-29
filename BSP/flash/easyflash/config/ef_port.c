@@ -34,6 +34,7 @@
 #include "stm32f4xx_hal.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 
 /* base address of the flash sectors */
 #define ADDR_FLASH_SECTOR_0 \
@@ -281,10 +282,5 @@ void ef_port_env_unlock(void) { /* You can add your code under here. */
 void ef_log_info(const char *format, ...) { (void)format; }
 
 void ef_print(const char *format, ...) {
-    char buf[512];
-    va_list ap;
-    va_start(ap, format);
-    uint16_t len = vsnprintf(buf, UART_BUFFER_SIZE, format, ap);
-    va_end(ap);
-    bsp_uart_send(E_UART_DEBUG, buf, len);
+    ;
 }

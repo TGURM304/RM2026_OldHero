@@ -30,7 +30,7 @@
 using namespace Motor;
 using namespace Algorithm;
 using namespace robomaster;
-#define yaw_zero_pos 3652
+#define yaw_zero_pos 252
 /*
  *  适用于麦克纳姆轮（民航英雄）
  *  实现了基础的旋转、平移
@@ -89,7 +89,7 @@ double vx = 0, vy = 0, v_basic =0,vmax = 0;
 double rotate = 0;
 
 double motor_target[4] = {0};
-uint8_t cap_count = 0,ui_count = 0;
+uint8_t cap_count = 0;
 const auto ins = app_ins_data();
 
 LowPassFilter vx_filter(20), vy_filter(20), rotate_filter(20);
@@ -120,11 +120,23 @@ void chassis_update_handle(){
 }
 
 void chassis_powerctrl_handle(){
+
+    cap_count ++;
+    if(cap_count > 100) {
+        CAP::send(100.0);
+        cap_count = 0;
+    }
+
     chassis_.updateMotorError(0, motor_target[0] - static_cast<float>(LU.device()->speed));
     chassis_.updateMotorError(1, motor_target[1] - static_cast<float>(RU.device()->speed));
     chassis_.updateMotorError(2, motor_target[2] - static_cast<float>(RD.device()->speed));
     chassis_.updateMotorError(3, motor_target[3] - static_cast<float>(LD.device()->speed));
-    chassis_.allocatePower(120);
+    if(bsp_time_get_ms() - CAP::data()->last_online_time <= 200) {
+        chassis_.allocatePower(120, 0.5 + 0.005 *CAP::data()->cap_percent);
+    }else {
+        chassis_.allocatePower(100);
+    }
+
 
     m3508_1_power.limiter(&LU.output,LU.device()->speed,m3508_1_power.power_limit);
     m3508_2_power.limiter(&RU.output,RU.device()->speed,m3508_2_power.power_limit);
@@ -138,24 +150,25 @@ void chassis_powerctrl_handle(){
 Chassis_cmd_t *app_chassis_data(){
     return &chassis;
 }
+
+
+
+
 // 静态任务，在 CubeMX 中配置
 void app_chassis_task(void *args) {
     // Wait for system init.
     while(!app_sys_ready())
         OS::Task::SleepMilliseconds(10);
 
+
     while(true) {
+
+
         chassis_update_handle();
         chassis_powerctrl_handle();
 
-        // basic::ui::add_int("11",0,5,100,100,100,50,100);
-        robomaster::basic::ui::add_int("a", 0, 0, 5, 700, 200, 30, 114514);
-        robomaster::basic::ui::add_int("b", 0, 1, 5, 700, 400, 30, 114514);
-        robomaster::basic::ui::add_int("c", 0, 2, 5, 700, 600, 30, 114514);
-        robomaster::basic::ui::add_int("d", 0, 3, 5, 700, 800, 30, 114514);
-        robomaster::basic::ui::add_int("e", 0, 4, 5, 1000, 200, 30, 114514);
-        robomaster::basic::ui::add_int("f", 0, 5, 5, 1000, 400, 30, 114514);
-        robomaster::basic::ui::add_int("g", 0, 6, 5, 1000, 600, 30, 114514);
+
+
 
 
 
@@ -165,6 +178,7 @@ void app_chassis_task(void *args) {
 
 void app_chassis_init() {
     CAP::init();
+
 LU.add_controller(std::make_unique <Controller::MotorBasePID> (
     Controller::MotorBasePID::PID_SPEED,
     std::make_unique <Controller::PID> (14.5, 0.08, 0.03, 16384, 1000),
@@ -187,8 +201,8 @@ RD.add_controller(std::make_unique <Controller::MotorBasePID> (
     nullptr
     ));
 
-// LU.init(); LD.init(); RU.init(); RD.init();
-//     LU.relax(); LD.relax();  RD.relax();RU.relax();
+LU.init(); LD.init(); RU.init(); RD.init();
+     // LU.relax(); LD.relax();  RD.relax();RU.relax();
 }
 
 #endif

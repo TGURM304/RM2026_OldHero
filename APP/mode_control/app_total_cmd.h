@@ -31,6 +31,7 @@ enum class input_source{
 class Mode_control{
 public:
     void update();
+    void ui_init();
     main_state mainState ;
     chassis_state chassisState;
     shoot_state shootState;
@@ -46,7 +47,7 @@ private:
 
     bool referee_online = false;
     uint8_t chassis_mode_cnt = 0;  // 底盘模式切换计数器
-
+    uint8_t ui_count = 0;
     //状态判断层
     void source_judge();
     void main_judge();
@@ -58,6 +59,8 @@ private:
     void gimbal_update();
     void chassis_update();
     void keyboard_update();
+    void data_update();
+    void ui_update();
 };
 
 extern Mode_control ctrl;

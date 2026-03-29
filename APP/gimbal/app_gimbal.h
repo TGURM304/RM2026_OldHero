@@ -17,6 +17,9 @@ extern "C" {
     float trigger_target = 0;
     float yaw_angle,pit_angle;
     float trigger_current,sl_current,sr_current;//拨弹盘电流，左右摩擦轮电流
+     typedef struct {
+         bool shoot = false;
+     }ui;
 };
 /*!
  * 云台初始化 (随系统初始化调用)

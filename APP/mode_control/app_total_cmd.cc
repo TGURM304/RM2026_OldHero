@@ -9,6 +9,7 @@
 #include "app_chassis.h"
 #include "app_gimbal.h"
 #include "bsp_time.h"
+#include "dev_cap.h"
 #include "robomaster.h"
 const auto rc = bsp_rc_data();
 auto referee = robomaster::image::rc::data();
@@ -28,6 +29,16 @@ void Mode_control::update() {
     gimbal_update();
     shoot_judge();
     shoot_update();
+    data_update();
+
+    //三组合键bsp_sys_reset
+
+    if(++ui_count >=100) {
+        ui_update();
+        ui_count = 0;
+    }
+
+
 }
 void Mode_control:: main_judge(){
     bool rc_oline = (bsp_time_get_ms() - rc->time_stamp < 100);
@@ -133,7 +144,7 @@ void Mode_control::chassis_update() {
         //底盘速度的控制模型为匀加速直线运动 v = v0+at
         double input_x = 1.0*(key_g.key.d  - key_g.key.a),input_y = 1.0*(key_g.key.w  - key_g.key.s);
 
-        chassis->v_basic = 400 ;//v_basic应该根据等级和功率实测
+        chassis->v_basic = 600 ;//v_basic应该根据等级和功率实测
         chassis->dx += input_x * chassis->cmd_acc;
         chassis->cmd_vx = chassis->v_basic * input_x + chassis->dx;
         if(input_x == 0){
@@ -141,7 +152,7 @@ void Mode_control::chassis_update() {
             chassis->dx = 0;
             if(abs((int)chassis->cmd_vx) < chassis->v_basic)chassis->cmd_vx = 0;
         }
-        chassis->cmd_vx = std::clamp((float)chassis->cmd_vx,-1000.f,1000.f);
+        chassis->cmd_vx = std::clamp((float)chassis->cmd_vx,-4000.f,4000.f);
 
         chassis->dy += input_y * chassis->cmd_acc;
         chassis->cmd_vy = chassis->v_basic * input_y + chassis->dy;
@@ -150,7 +161,7 @@ void Mode_control::chassis_update() {
             chassis->dy = 0;
             if(abs((int)chassis->cmd_vy) < chassis->v_basic)chassis->cmd_vy = 0;
         }
-        chassis->cmd_vy = std::clamp((float)chassis->cmd_vy,-1000.f,1000.f);
+        chassis->cmd_vy = std::clamp((float)chassis->cmd_vy,-4000.f,4000.f);
         chassis->cmd_rotate_1 = 1.0* key_g.key.q * 1000 - 1.0* key_g.key.e * 1000;
 //        if(!key_g.key.q and !key_g.key.e){
 //            chassis->cmd_rotate_1 *= 0.5;//指数衰减
@@ -168,7 +179,7 @@ void Mode_control::chassis_update() {
             break;
         case chassis_state::FOLLOW:
             chassis->cmd_rotate_1 = 0;
-            const int ANGLE_ZERO = 3652 ;
+            const int ANGLE_ZERO = 252 ;
             const int ANGLE_MAX = 9050;
             uint16_t angle= 0;float angle_ = 0 ;
             angle = ((uint16_t)gimbal->yaw_angle - ANGLE_ZERO +8192) % 8192;
@@ -217,4 +228,69 @@ void Mode_control::shoot_update() {
             else gimbal->trigger_target -= 0;
         }
 
+}
+void Mode_control::data_update() {
+    chassis->ui.shoot_flag = shoot_launched;
+}
+void Mode_control::ui_init() {
+    // basic::ui::add_float("a", 0, 0, 5, 700, 200, 30, static_cast<float>(rotate));
+    // basic::ui::add_int("b", 0, 1, 5, 700, 400, 30, CAP::data()->cap_percent);
+    // basic::ui::add_int("c", 0, 2, 5, 700, 600, 30, CAP::data()->limit_power );
+    // basic::ui::add_int("d", 0, 3, 5, 700, 800, 30, 114514);
+    // basic::ui::add_int("e", 0, 4, 5, 1000, 200, 30, 114514);
+    // basic::ui::add_int("f", 0, 5, 5, 1000, 400, 30, 114514);
+    // basic::ui::add_int("g", 0, 6, 5, 1000, 600, 30, 114514);
+
+    robomaster::basic::ui::add_line("L1", 0, 2, 3, 1180, 493, 730, 493);
+    robomaster::basic::ui::add_line("L2", 0, 2, 3, 1180, 393, 730, 393);
+    robomaster::basic::ui::add_line("L3", 0, 2, 3, 1180, 293, 730, 293);
+    robomaster::basic::ui::add_line("L4", 0, 2, 3, 1180, 193, 730, 193);
+
+    robomaster::basic::ui::add_string("a2", 0, 6, 2, 44, 866, 20, "rotate");            //Rotate
+    robomaster::basic::ui::add_string("b2", 0, 6, 2, 44, 826, 20, "trigger");   //ShootState
+    robomaster::basic::ui::add_string("c2", 0, 6, 2, 44, 786, 20, "cap");//CapPercent
+    robomaster::basic::ui::add_string("d2", 0, 6, 2, 44, 746, 20, "pitch");//pit_target
+
+    robomaster::basic::ui::add_float("a1", 0, 6, 2, 244, 866, 20, static_cast<float>(chassis->cmd_rotate_1) + static_cast<float>(chassis->cmd_rotate_2));            //Rotate
+    robomaster::basic::ui::add_float("b1", 0, 6, 2, 244, 826, 20, gimbal->trigger_target);   //ShootState
+    robomaster::basic::ui::add_float("c1", 0, 6, 2, 244, 786, 20, CAP::data()->cap_percent);//CapPercent
+    robomaster::basic::ui::add_float("d1", 0, 6, 2, 244, 746, 20, gimbal->pit_target);//pit_target
+
+
+
+    // basic::ui::add_float("d4", 0, 6, 2, 14, 746, 20, "");//Towards
+
+    // basic::ui::add_string("SUM", 0, 2, 3, 1490, 866, 30, "SUM");
+    // basic::ui::add_arc("E_l", 0 ,8, 4, 958, 540, 229, 311, 390, 400);
+    // basic::ui::add_arc("E_r", 0 ,8, 4, 973, 540, 231, 309, 390, 400);
+    // basic::ui::add_circle("Gim", 0, 5, 8, 440, 800, 35);
+    //
+    // basic::ui::add_arc("En", 1 ,2, 12, 967, 540, 230, 310, 391, 400);
+    // basic::ui::add_arc("Cis", 1 ,6, 10, 440, 800, 35, 325, 50, 50);
+    // basic::ui::add_arc("ht0", 2 ,8, 1, 60, 40, 1, 10, 10, 10);
+    // basic::ui::add_arc("ht1", 2 ,8, 1, 60, 40, 1, 10, 10, 10);
+    // basic::ui::add_arc("ht2", 2 ,8, 1, 60, 40, 1, 10, 10, 10);
+    // basic::ui::add_arc("ht3", 2 ,8, 1, 60, 40, 1, 10, 10, 10);
+    //
+    // basic::ui::add_circle("seS", 1, 8, 1, 165, 852, 9);
+    // basic::ui::add_circle("sin", 1, 8, 1, 165, 812, 9);
+    // basic::ui::add_circle("vs", 1, 8, 1, 165, 772, 9);
+    //
+    // basic::ui::add_circle("Vis", 1, 8, 1, 810, 130, 9);
+    // basic::ui::add_circle("Sho", 1, 8, 1, 910, 130, 9);
+    // basic::ui::add_circle("Spi", 1, 8, 1, 1010, 130, 9);
+    // basic::ui::add_circle("Die", 1, 8, 1, 1110, 130, 9);
+    // basic::ui::add_float("pit", 1, 2, 3, 1350, 670, 30, 0.1);
+
+}
+void Mode_control::ui_update() {
+
+    if(key_g.key.r == 1) {
+        ui_init();
+    }
+
+    robomaster::basic::ui::update_float("a1", 0, 6, 2, 244, 866, 20, static_cast<float>(chassis->cmd_rotate_1) + static_cast<float>(chassis->cmd_rotate_2));            //Rotate
+    robomaster::basic::ui::update_float("b1", 0, 6, 2, 244, 826, 20, gimbal->trigger_target);   //ShootState
+    robomaster::basic::ui::update_float("c1", 0, 6, 2, 244, 786, 20, CAP::data()->cap_percent);//CapPercent
+    robomaster::basic::ui::update_float("d1", 0, 6, 2, 244, 746, 20, gimbal->pit_target);//pit_target
 }

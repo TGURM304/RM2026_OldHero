@@ -20,6 +20,13 @@ struct Chassis_cmd_t{
     bool status = true,follow_state = false;
     //最大功率
     double max_power = 0;
+
+    typedef  struct {
+        //yaw angle
+        float yaw_angle = 0;
+        bool shoot_flag = false;
+    }ui_t;
+    ui_t ui;
 };
 /*!
  * 底盘初始化 (随系统初始化调用)

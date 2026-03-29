@@ -61,6 +61,7 @@ Gimbal_cmd_t *app_gimbal_data(){
     return &gimbal;
 }
 float target = 0, yaw_lst_angle = 0, yaw_sum_angle = 0;
+uint8_t ui_count = 0;
 void set_target(bsp_uart_e e, uint8_t *s, uint16_t l) {
     sscanf((char *) s, "%f", &target);
 }
@@ -102,10 +103,12 @@ void gimbal_update_handle(){
 void app_gimbal_task(void *args) {
     // Wait for system init.
     while(!app_sys_ready())
-    OS::Task::SleepMilliseconds(500);
+        OS::Task::SleepMilliseconds(500);
 
 
     while(true) {
+
+
         ctrl.update();
 
         if(ctrl.mainState == main_state::SAFE)gimbal_safe_handle();
@@ -120,9 +123,12 @@ void app_gimbal_task(void *args) {
 
 
 void app_gimbal_init() {
-    // yaw.init(); pit.init();
-    // shoot_left.init();shoot_right.init();
-    // trigger.init();
+    yaw.init(); pit.init();
+    shoot_left.init();shoot_right.init();
+    trigger.init();
+    ctrl.ui_init();
+
+
     trigger.use_extend_angle = true;trigger.use_degree_angle = true;
     trigger.use_stall_detect = true;
 //    shoot_left.relax();shoot_right.relax();
