@@ -49,6 +49,7 @@ private:
     uint8_t chassis_mode_cnt = 0;  // 底盘模式切换计数器
     uint8_t ui_count = 0;
     //状态判断层
+    void playing_judge();
     void source_judge();
     void main_judge();
     void shoot_judge();

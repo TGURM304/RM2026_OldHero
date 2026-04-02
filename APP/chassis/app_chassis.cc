@@ -84,7 +84,7 @@ MotorPower m3508_4_power(motor_3508_power_data);
 ChassisPowerManager chassis_(&m3508_1_power, &m3508_2_power, &m3508_3_power, &m3508_4_power);
 
 // 直角坐标系下的底盘速度，符合人类直觉，y 轴正方向为机体前进方向。
-double vx = 0, vy = 0, v_basic =0,vmax = 0;
+double vx = 0, vy = 0;
 // 旋转速度
 double rotate = 0;
 
@@ -134,9 +134,8 @@ void chassis_powerctrl_handle(){
     if(bsp_time_get_ms() - CAP::data()->last_online_time <= 200) {
         chassis_.allocatePower(120, 0.5 + 0.005 *CAP::data()->cap_percent);
     }else {
-        chassis_.allocatePower(100);
+        chassis_.allocatePower(chassis.referee_power);
     }
-
 
     m3508_1_power.limiter(&LU.output,LU.device()->speed,m3508_1_power.power_limit);
     m3508_2_power.limiter(&RU.output,RU.device()->speed,m3508_2_power.power_limit);
@@ -152,8 +151,6 @@ Chassis_cmd_t *app_chassis_data(){
 }
 
 
-
-
 // 静态任务，在 CubeMX 中配置
 void app_chassis_task(void *args) {
     // Wait for system init.
@@ -163,14 +160,8 @@ void app_chassis_task(void *args) {
 
     while(true) {
 
-
         chassis_update_handle();
         chassis_powerctrl_handle();
-
-
-
-
-
 
         OS::Task::SleepMilliseconds(1);
     }

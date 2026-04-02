@@ -12,16 +12,28 @@
 #include "dev_cap.h"
 #include "robomaster.h"
 const auto rc = bsp_rc_data();
-auto referee = robomaster::image::rc::data();
+auto refereeRc = robomaster::image::rc::data();
+auto refereeData = robomaster::basic::data();
 auto gimbal = app_gimbal_data();
 auto chassis = app_chassis_data();
 bsp_rc_keyboard_u lst_keyboard_,now_keyboard_,key_g;
 uint8_t lst = 0,now = 0 ,lst_ = 0,now_ = 0;
 uint8_t lst_s = 0,now_s = 0;
 Mode_control ctrl;
+void Mode_control::playing_judge() {
+    uint32_t lst_online = refereeRc->timestamp;
+    referee_online = (lst_online - refereeRc->timestamp < 100);
+    if(refereeRc->sw == 0 && referee_online){
+        mainState = main_state::ACTIVE;
+        inputSource = input_source::REFEREE_KEYBOARD;
+    }
+    else {
+        main_judge();
+        source_judge();
+    }
+}
 void Mode_control::update() {
-    main_judge();
-    source_judge();
+    playing_judge();
     keyboard_update();  // 先更新键盘状态
 
     chassis_judge();
@@ -123,15 +135,15 @@ void Mode_control::keyboard_update() {
         pres.mouse_y = rc->mouse_y;
         break;
     case input_source::REFEREE_KEYBOARD:
-        memcpy(&key_g.key, &referee->keyboard, sizeof(key_g.key));
+        memcpy(&key_g.key, &refereeRc->keyboard, sizeof(key_g.key));
         lst        = now;
-        now        = referee->mouse_l;
+        now        = refereeRc->mouse_l;
         pres.mouse_l      = (now ^ lst) & now;
         lst_         = now_;
-        now_         = referee->mouse_r;
+        now_         = refereeRc->mouse_r;
         pres.mouse_r      = (now_ ^ lst_) & now_;
-        pres.mouse_x = referee->mouse_x;
-        pres.mouse_y = referee->mouse_y;
+        pres.mouse_x = refereeRc->mouse_x;
+        pres.mouse_y = refereeRc->mouse_y;
         break;
     }
 }
@@ -231,15 +243,9 @@ void Mode_control::shoot_update() {
 }
 void Mode_control::data_update() {
     chassis->ui.shoot_flag = shoot_launched;
+    chassis->referee_power  = refereeData->robot_status.chassis_power_limit;
 }
 void Mode_control::ui_init() {
-    // basic::ui::add_float("a", 0, 0, 5, 700, 200, 30, static_cast<float>(rotate));
-    // basic::ui::add_int("b", 0, 1, 5, 700, 400, 30, CAP::data()->cap_percent);
-    // basic::ui::add_int("c", 0, 2, 5, 700, 600, 30, CAP::data()->limit_power );
-    // basic::ui::add_int("d", 0, 3, 5, 700, 800, 30, 114514);
-    // basic::ui::add_int("e", 0, 4, 5, 1000, 200, 30, 114514);
-    // basic::ui::add_int("f", 0, 5, 5, 1000, 400, 30, 114514);
-    // basic::ui::add_int("g", 0, 6, 5, 1000, 600, 30, 114514);
 
     robomaster::basic::ui::add_line("L1", 0, 2, 3, 1180, 493, 730, 493);
     robomaster::basic::ui::add_line("L2", 0, 2, 3, 1180, 393, 730, 393);
@@ -249,9 +255,9 @@ void Mode_control::ui_init() {
     robomaster::basic::ui::add_string("a2", 0, 6, 2, 44, 866, 20, "rotate");            //Rotate
     robomaster::basic::ui::add_string("b2", 0, 6, 2, 44, 826, 20, "trigger");   //ShootState
     robomaster::basic::ui::add_string("c2", 0, 6, 2, 44, 786, 20, "cap");//CapPercent
-    robomaster::basic::ui::add_string("d2", 0, 6, 2, 44, 746, 20, "pitch");//pit_target
+    robomaster::basic::ui::add_string("d2", 0, 6, 2, 44, 746, 20, "pit");//pit_target
 
-    robomaster::basic::ui::add_float("a1", 0, 6, 2, 244, 866, 20, static_cast<float>(chassis->cmd_rotate_1) + static_cast<float>(chassis->cmd_rotate_2));            //Rotate
+    robomaster::basic::ui::add_float("a1", 0, 6, 2, 244, 866, 20, static_cast<float>(chassis->cmd_rotate_1+chassis->cmd_rotate_1));            //Rotate
     robomaster::basic::ui::add_float("b1", 0, 6, 2, 244, 826, 20, gimbal->trigger_target);   //ShootState
     robomaster::basic::ui::add_float("c1", 0, 6, 2, 244, 786, 20, CAP::data()->cap_percent);//CapPercent
     robomaster::basic::ui::add_float("d1", 0, 6, 2, 244, 746, 20, gimbal->pit_target);//pit_target

@@ -18,6 +18,7 @@
 #include "app_total_cmd.h"
 #include "app_msg.h"
 #include "app_second_order.h"
+#include "robomaster.h"
 #ifdef COMPILE_GIMBAL
 using namespace Motor;
 using namespace Controller;
@@ -55,7 +56,7 @@ const auto ins = app_ins_data();
 //二次轨迹规划
 PathReference::second_order yaw_path(1000,40,1);
 PathReference::second_order pit_path(1000,40,1);
-
+auto rc = robomaster::image::rc::data();
 static Gimbal_cmd_t gimbal;
 Gimbal_cmd_t *app_gimbal_data(){
     return &gimbal;
@@ -117,6 +118,7 @@ void app_gimbal_task(void *args) {
         else if(ctrl.shootState == shoot_state::SHOOT_OFF)shoot_off_handle();
         motor_status_update_handle();
         gimbal_update_handle();
+        app_msg_vofa_send(E_UART_1,rc->l[0],rc->l[1],rc->dial);
             OS::Task::SleepMilliseconds(1);
         }
     }

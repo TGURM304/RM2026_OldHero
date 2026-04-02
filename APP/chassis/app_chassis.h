@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include "app_conf.h"
 
 #ifdef __cplusplus
@@ -20,7 +21,7 @@ struct Chassis_cmd_t{
     bool status = true,follow_state = false;
     //最大功率
     double max_power = 0;
-
+    uint16_t referee_power = 60;
     typedef  struct {
         //yaw angle
         float yaw_angle = 0;
